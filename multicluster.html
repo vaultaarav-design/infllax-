@@ -92,7 +92,11 @@
         .stat-val  { font-size:0.82rem; font-weight:bold; }
 
         /* CLUSTER LIST */
-        .cluster-section { margin-bottom:8px; background:#040404; border:1px solid #1a1a1a; border-radius:8px; overflow:hidden; }
+        .cluster-section { margin-bottom:0; background:#040404; border:1px solid #1a1a1a; border-radius:8px; overflow:hidden; }
+        #clusterList { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; margin-bottom:8px; }
+        @media (max-width:600px) { #clusterList { grid-template-columns: 1fr; } }
+        #clusterList { display:grid; grid-template-columns: repeat(3, 1fr); gap:8px; }
+        @media (max-width:600px) { #clusterList { grid-template-columns: 1fr; } }
         .cluster-hdr     { display:flex; align-items:center; gap:10px; padding:10px 14px; background:#060606; }
         .cluster-hdr input[type="checkbox"] { accent-color:#00aaff; width:16px; height:16px; flex-shrink:0; cursor:pointer; }
         .cluster-nm  { font-size:0.76rem; font-weight:bold; color:#00aaff; flex:1; }
@@ -131,6 +135,30 @@
                     <button onclick="setRange(4)" id="rng4">Annual</button>
                 </div>
                 <button class="fs-btn" onclick="toggleFS()" id="fsBtn">⛶ Fullscreen</button>
+            </div>
+        </div>
+
+        <!-- TIMELINE DROPDOWN ROW -->
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px;padding:8px 0;border-top:1px solid #111;">
+            <span style="font-size:0.58rem;color:#555;letter-spacing:1.5px;text-transform:uppercase;flex-shrink:0;">📅 Timeline</span>
+            <select id="mcTimeRange" onchange="onMcTimeChange()"
+                style="background:#080808;color:var(--gold);border:1px solid #2a2000;padding:6px 12px;border-radius:5px;font-size:0.7rem;font-weight:bold;cursor:pointer;flex:1;min-width:160px;">
+                <option value="all">ALL TIME</option>
+                <option value="current" selected>Current Month</option>
+                <option value="3months">Last 3 Months</option>
+                <option value="halfyear">Half Year (6M)</option>
+                <option value="1year">Annual (1Y)</option>
+                <option value="2025">Year 2025</option>
+                <option value="2026">Year 2026</option>
+                <option value="2027">Year 2027</option>
+                <option value="custom">Custom Range</option>
+            </select>
+            <div id="mcCustomWrap" style="display:none;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="date" id="mcCustomFrom" onchange="onMcTimeChange()"
+                    style="background:#080808;color:#aaa;border:1px solid #333;padding:5px 8px;border-radius:4px;font-size:0.68rem;">
+                <span style="color:#444;font-size:0.7rem;">→</span>
+                <input type="date" id="mcCustomTo" onchange="onMcTimeChange()"
+                    style="background:#080808;color:#aaa;border:1px solid #333;padding:5px 8px;border-radius:4px;font-size:0.68rem;">
             </div>
         </div>
 
@@ -380,6 +408,14 @@ onValue(ref(db, 'isi_v6/stats'), snap => {
     buildClusterList(); // refresh live balances
 });
 
+// ── TIMELINE DROPDOWN ──
+window.onMcTimeChange = function() {
+    const range = document.getElementById('mcTimeRange')?.value;
+    const wrap  = document.getElementById('mcCustomWrap');
+    if (wrap) wrap.style.display = range === 'custom' ? 'flex' : 'none';
+    loadAndRender();
+};
+
 // ── RANGE ──
 window.setRange = function(idx) {
     rangeIdx = idx;
@@ -501,8 +537,34 @@ async function loadAndRender() {
         return d !== 0 ? d : (a.savedAt||'').localeCompare(b.savedAt||'');
     });
 
-    // Apply range
-    const hist = allTrades.slice(-RANGES[rangeIdx]);
+    // Apply timeline dropdown filter first
+    const tRange = document.getElementById('mcTimeRange')?.value || 'current';
+    const now    = new Date();
+    let timeFilt = allTrades;
+    if (tRange !== 'all') {
+        timeFilt = allTrades.filter(t => {
+            if (!t.date) return false;
+            const d = new Date(t.date);
+            if (tRange === 'current')  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            if (tRange === '3months')  return (now - d) / 86400000 <= 92;
+            if (tRange === 'halfyear') return (now - d) / 86400000 <= 183;
+            if (tRange === '1year')    return (now - d) / 86400000 <= 365;
+            if (tRange === '2025')     return d.getFullYear() === 2025;
+            if (tRange === '2026')     return d.getFullYear() === 2026;
+            if (tRange === '2027')     return d.getFullYear() === 2027;
+            if (tRange === 'custom') {
+                const from = document.getElementById('mcCustomFrom')?.value;
+                const to   = document.getElementById('mcCustomTo')?.value;
+                if (from && d < new Date(from)) return false;
+                if (to   && d > new Date(to + 'T23:59:59')) return false;
+                return true;
+            }
+            return true;
+        });
+    }
+
+    // Apply range buttons (last N trades) on top of time filter
+    const hist = timeFilt.slice(-RANGES[rangeIdx]);
 
     // Start balance = sum of node.balance for selected nodes
     let startBal = 0;

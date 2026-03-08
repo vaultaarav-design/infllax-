@@ -21,11 +21,14 @@ const monthNames = ["January","February","March","April","May","June",
 
 // ── STATE ──
 let clusters           = {};
-let selectedClusterId  = null;
+let selectedClusterId  = null;   // kept for backward compat with renderAll etc
 let allTrades          = [];
 let nodeMap            = {};
-let liveStats          = {};  // { [clusterId]: { [nodeIdx]: statsObj } }
-let preentryData       = {};  // { [clusterId]: { [nodeIdx]: { [fbKey]: record } } }
+let liveStats          = {};
+let preentryData       = {};
+
+// Multi-select state: { [clusterId]: { on: bool, nodes: { [nIdx]: bool } } }
+let mcSelections       = {};
 
 // Stats path — dedicated lightweight path
 const statsPath = (cId, nIdx) => `isi_v6/stats/${cId}/${nIdx}`;
@@ -45,13 +48,22 @@ onValue(ref(db, 'isi_v6/clusters'), (snap) => {
     clusters = snap.val() || {};
     document.getElementById('fbMonStatus').textContent = '● LIVE — Firebase Connected';
     document.getElementById('fbMonStatus').style.color = '#00c805';
-    populateClusterFilter();
+
+    // Init mcSelections for all clusters (all ON by default)
+    Object.keys(clusters).forEach(cId => {
+        if (!mcSelections[cId]) mcSelections[cId] = { on: true, nodes: {} };
+    });
+
+    buildMcSelGrid();
+    selectedClusterId = Object.keys(clusters)[0] || null;
+    loadClusterData();  // loads ALL clusters
 });
 
 // ── DEDICATED STATS LISTENER (instant, no images) ──
 onValue(ref(db, 'isi_v6/stats'), (snap) => {
     liveStats = snap.val() || {};
-    if (selectedClusterId) renderAll();
+    updateGridBalances();  // only update balance text, don't rebuild checkboxes
+    renderAll();
 });
 
 // ── PRE-ENTRY DATA LISTENER ──
@@ -60,78 +72,167 @@ onValue(ref(db, 'isi_v6/preentry'), (snap) => {
 });
 
 // ──────────────────────────────────────────────
-// POPULATE CLUSTER FILTER
+// BUILD MULTICLUSTER TICK SELECTION GRID
 // ──────────────────────────────────────────────
-function populateClusterFilter() {
-    const sel   = document.getElementById('clusterFilter');
-    const saved = localStorage.getItem('mon_sel_cluster');
+function buildMcSelGrid() {
+    const grid = document.getElementById('mcSelGrid');
+    if (!grid) return;
+    grid.innerHTML = '';
 
-    sel.innerHTML = '<option value="">— Select Cluster —</option>';
-    Object.entries(clusters).forEach(([id, c]) => {
-        const o = document.createElement('option');
-        o.value = id; o.textContent = c.title;
-        sel.appendChild(o);
+    Object.entries(clusters).forEach(([cId, cluster]) => {
+        if (!mcSelections[cId]) mcSelections[cId] = { on: true, nodes: {} };
+        const sel   = mcSelections[cId];
+        const nodes = cluster.nodes || [];
+
+        const nodeRows = nodes.map((node, nIdx) => {
+            const stats  = liveStats[cId]?.[String(nIdx)] || {};
+            const bal    = (stats.currentBal ?? node.balance ?? 0)
+                            .toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 });
+            const net    = stats.net ?? 0;
+            const curr   = node.curr || '$';
+            const netCol = net >= 0 ? '#00c805' : '#ff3131';
+            // FIX: node checked only if BOTH cluster ON and node not explicitly false
+            const nodeOn = sel.on && sel.nodes[nIdx] !== false;
+            const chk    = nodeOn ? 'checked' : '';
+            return `<div class="mc-acc-row">
+                <input type="checkbox" ${chk} onchange="monToggleNode('${cId}',${nIdx},this.checked)">
+                <span class="mc-acc-name">${node.title || 'Account ' + (nIdx+1)}</span>
+                <span class="mc-acc-bal" id="mcbal_${cId}_${nIdx}">${curr}${bal}</span>
+                <span class="mc-acc-net" style="color:${netCol}" id="mcnet_${cId}_${nIdx}">${net>=0?'+':''}${curr}${Math.abs(net).toFixed(2)}</span>
+            </div>`;
+        }).join('');
+
+        const cChk = sel.on ? 'checked' : '';
+
+        // Total balance for cluster header
+        const clusterBalByCurr = {};
+        nodes.forEach((node, ni) => {
+            const s    = liveStats[cId]?.[String(ni)] || {};
+            const curr = node.curr || '$';
+            const bal  = s.currentBal ?? node.balance ?? 0;
+            clusterBalByCurr[curr] = (clusterBalByCurr[curr] || 0) + bal;
+        });
+        const balStr = Object.entries(clusterBalByCurr)
+            .map(([curr, v]) => `${curr}${v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}`)
+            .join(' + ');
+
+        const sec = document.createElement('div');
+        sec.className = 'mc-cluster-row';
+        sec.innerHTML = `
+            <div class="mc-cluster-hdr">
+                <input type="checkbox" ${cChk} onchange="monToggleCluster('${cId}',this.checked)">
+                <span class="mc-cluster-name">${cluster.title}</span>
+                <span class="mc-cluster-count" style="color:#c5a059;" id="mccluster_bal_${cId}">${balStr}</span>
+                <span class="mc-cluster-count">${nodes.length} acct</span>
+            </div>
+            <div class="mc-acc-list" id="mcnd_${cId}" style="${sel.on?'':'display:none'}">${nodeRows}</div>`;
+        grid.appendChild(sec);
     });
+}
 
-    if (saved && clusters[saved]) {
-        sel.value = saved;
-        selectedClusterId = saved;
-        populateAccFilter(saved);
-        loadClusterData(saved);
-    }
+// Update only the balance numbers in grid without rebuilding checkboxes
+function updateGridBalances() {
+    Object.entries(clusters).forEach(([cId, cluster]) => {
+        const nodes = cluster.nodes || [];
+
+        // Update per-node balance
+        nodes.forEach((node, nIdx) => {
+            const stats = liveStats[cId]?.[String(nIdx)] || {};
+            const bal   = (stats.currentBal ?? node.balance ?? 0)
+                           .toLocaleString('en-US', {minimumFractionDigits:2, maximumFractionDigits:2});
+            const net   = stats.net ?? 0;
+            const curr  = node.curr || '$';
+            const netCol = net >= 0 ? '#00c805' : '#ff3131';
+
+            const balEl = document.getElementById(`mcbal_${cId}_${nIdx}`);
+            const netEl = document.getElementById(`mcnet_${cId}_${nIdx}`);
+            if (balEl) balEl.textContent = `${curr}${bal}`;
+            if (netEl) { netEl.textContent = `${net>=0?'+':''}${curr}${Math.abs(net).toFixed(2)}`; netEl.style.color = netCol; }
+        });
+
+        // Update cluster total balance
+        const clBal = {};
+        nodes.forEach((node, ni) => {
+            const s = liveStats[cId]?.[String(ni)] || {};
+            const curr = node.curr || '$';
+            clBal[curr] = (clBal[curr] || 0) + (s.currentBal ?? node.balance ?? 0);
+        });
+        const clBalEl = document.getElementById(`mccluster_bal_${cId}`);
+        if (clBalEl) clBalEl.textContent = Object.entries(clBal)
+            .map(([curr, v]) => `${curr}${v.toLocaleString('en-US',{minimumFractionDigits:0,maximumFractionDigits:0})}`)
+            .join(' + ');
+    });
+}
+
+// Monitoring grid toggles — use "mon" prefix to avoid clash with MC equity panel functions
+window.monToggleCluster = function(cId, checked) {
+    if (!mcSelections[cId]) mcSelections[cId] = { on: true, nodes: {} };
+    mcSelections[cId].on = checked;
+    const accList = document.getElementById('mcnd_' + cId);
+    if (accList) accList.style.display = checked ? '' : 'none';
+    updateSelectedFromMc();
+    renderAll();
+};
+
+window.monToggleNode = function(cId, nIdx, checked) {
+    if (!mcSelections[cId]) mcSelections[cId] = { on: true, nodes: {} };
+    mcSelections[cId].nodes[nIdx] = checked;
+    renderAll();
+};
+
+function updateSelectedFromMc() {
+    const first = Object.entries(mcSelections).find(([id, s]) => s.on);
+    selectedClusterId = first ? first[0] : null;
+}
+
+// ── HELPER: Is a specific node selected? ──
+function isNodeSelected(cId, nIdx) {
+    const sel = mcSelections[cId];
+    if (!sel || !sel.on) return false;           // cluster OFF → node OFF
+    return sel.nodes[nIdx] !== false;             // node explicitly OFF → false, else ON
 }
 
 // ──────────────────────────────────────────────
-// POPULATE ACCOUNT FILTER
+// LOAD ALL TRADES — ALL CLUSTERS (full reload)
 // ──────────────────────────────────────────────
-function populateAccFilter(clusterId) {
-    const sel = document.getElementById('accFilter');
-    sel.innerHTML = '<option value="ALL">All Accounts (Combined)</option>';
-    sel.disabled  = false;
+let _fbListeners = [];  // track active listeners for cleanup
 
-    const cluster = clusters[clusterId];
-    if (!cluster) return;
-
-    cluster.nodes.forEach((node, idx) => {
-        const o = document.createElement('option');
-        o.value       = idx;
-        o.textContent = `${node.title || 'Account ' + (idx + 1)}  (${node.curr}${(node.balance || 0).toLocaleString()})`;
-        sel.appendChild(o);
-    });
-}
-
-// ──────────────────────────────────────────────
-// LOAD ALL TRADES FOR SELECTED CLUSTER
-// ──────────────────────────────────────────────
-function loadClusterData(clusterId) {
-    const cluster = clusters[clusterId];
-    if (!cluster) return;
-
+function loadClusterData(_unused) {
+    // Unsubscribe old listeners
+    _fbListeners.forEach(unsub => { try { unsub(); } catch(e){} });
+    _fbListeners = [];
     allTrades = [];
     nodeMap   = {};
-    let pending = cluster.nodes.length;
-    if (pending === 0) { renderAll(); return; }
 
-    cluster.nodes.forEach((node, nIdx) => {
-        nodeMap[nIdx] = node;
-        onValue(ref(db, `isi_v6/clusters/${clusterId}/nodes/${nIdx}/tradeHistory`), (snap) => {
-            // Remove old trades from this node
-            allTrades = allTrades.filter(t => t._nodeIdx !== nIdx);
-            const val = snap.val();
-            if (val) {
-                Object.entries(val).forEach(([fbKey, trade]) => {
-                    allTrades.push({
-                        ...trade,
-                        _nodeIdx: nIdx,
-                        _fbKey:   fbKey,
-                        _nodeTitle: node.title || 'Account ' + (nIdx + 1),
-                        _curr: node.curr || '$'
+    const allClusterIds = Object.keys(clusters);
+    if (!allClusterIds.length) { renderAll(); return; }
+
+    // Load ALL clusters (we filter by mcSelections at render time)
+    allClusterIds.forEach(cId => {
+        const cluster = clusters[cId];
+        if (!cluster?.nodes?.length) return;
+
+        cluster.nodes.forEach((node, nIdx) => {
+            const unsub = onValue(ref(db, `isi_v6/clusters/${cId}/nodes/${nIdx}/tradeHistory`), (snap) => {
+                // Remove old trades for this exact cluster+node
+                allTrades = allTrades.filter(t => !(t._clusterId === cId && t._nodeIdx === nIdx));
+                const val = snap.val();
+                if (val) {
+                    Object.entries(val).forEach(([fbKey, trade]) => {
+                        allTrades.push({
+                            ...trade,
+                            _clusterId:  cId,
+                            _nodeIdx:    nIdx,
+                            _fbKey:      fbKey,
+                            _nodeTitle:  node.title || 'Account ' + (nIdx + 1),
+                            _curr:       node.curr || '$'
+                        });
                     });
-                });
-            }
-            // Sort by date desc
-            allTrades.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
-            renderAll();
+                }
+                allTrades.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                renderAll();
+            });
+            _fbListeners.push(unsub);
         });
     });
 }
@@ -140,53 +241,43 @@ function loadClusterData(clusterId) {
 // FILTER CHANGE HANDLER
 // ──────────────────────────────────────────────
 window.onFilterChange = function () {
-    const newCluster = document.getElementById('clusterFilter').value;
-
-    if (newCluster !== selectedClusterId) {
-        selectedClusterId = newCluster || null;
-        allTrades = [];
-        document.getElementById('accFilter').innerHTML = '<option value="ALL">All Accounts (Combined)</option>';
-        document.getElementById('accFilter').disabled  = true;
-
-        if (selectedClusterId) {
-            localStorage.setItem('mon_sel_cluster', selectedClusterId);
-            populateAccFilter(selectedClusterId);
-            loadClusterData(selectedClusterId);
-        } else {
-            localStorage.removeItem('mon_sel_cluster');
-            renderAll();
-        }
-    } else {
-        renderAll();
-    }
+    // Custom range toggle
+    const range = document.getElementById('timeRange')?.value;
+    const customWrap = document.getElementById('customRangeWrap');
+    if (customWrap) customWrap.style.display = range === 'custom' ? 'flex' : 'none';
+    updateSelectedFromMc();
+    renderAll();
 };
 
 // ──────────────────────────────────────────────
 // GET FILTERED TRADES
 // ──────────────────────────────────────────────
 function getFilteredTrades() {
-    const accVal  = document.getElementById('accFilter').value;
-    const range   = document.getElementById('timeRange').value;
+    const range   = document.getElementById('timeRange')?.value || 'all';
     const now     = new Date();
 
-    let filtered = [...allTrades];
-
-    // Account filter
-    if (accVal !== 'ALL') {
-        const idx = parseInt(accVal);
-        filtered = filtered.filter(t => t._nodeIdx === idx);
-    }
+    // Filter by checked clusters/nodes using isNodeSelected helper
+    let filtered = allTrades.filter(t => isNodeSelected(t._clusterId, t._nodeIdx));
 
     // Time filter
     if (range !== 'all') {
         filtered = filtered.filter(t => {
             if (!t.date) return false;
             const d = new Date(t.date);
-            if (range === '1week')   return (now - d) / 86400000 <= 7;
-            if (range === 'current') return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-            if (range === '3months') return (now - d) / 86400000 <= 92;
-            if (range === '1year')   return (now - d) / 86400000 <= 365;
-            if (range === '3year')   return (now - d) / 86400000 <= 1095;
+            if (range === 'current')  return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+            if (range === '3months')  return (now - d) / 86400000 <= 92;
+            if (range === 'halfyear') return (now - d) / 86400000 <= 183;
+            if (range === '1year')    return (now - d) / 86400000 <= 365;
+            if (range === '2025')     return d.getFullYear() === 2025;
+            if (range === '2026')     return d.getFullYear() === 2026;
+            if (range === '2027')     return d.getFullYear() === 2027;
+            if (range === 'custom') {
+                const from = document.getElementById('customFrom')?.value;
+                const to   = document.getElementById('customTo')?.value;
+                if (from && d < new Date(from)) return false;
+                if (to   && d > new Date(to + 'T23:59:59')) return false;
+                return true;
+            }
             return true;
         });
     }
@@ -198,13 +289,14 @@ function getFilteredTrades() {
 // RENDER ALL
 // ──────────────────────────────────────────────
 function renderAll() {
-    if (!selectedClusterId) {
-        clearUI(); return;
-    }
+    const anySelected = Object.values(mcSelections).some(s => s.on);
+    if (!anySelected) { clearUI(); return; }
     const filtered = getFilteredTrades();
     renderPerformanceCard(filtered);
     renderRecentSessions();
-    renderCalendar(filtered);
+    const mode = document.getElementById('calViewMode')?.value || 'calendar';
+    if (mode === 'list') renderListView();
+    else renderCalendar(filtered);
 }
 
 function clearUI() {
@@ -226,9 +318,8 @@ function clearUI() {
 // PERFORMANCE OVERVIEW CARD
 // ──────────────────────────────────────────────
 function renderPerformanceCard(filtered) {
-    const accVal  = document.getElementById('accFilter').value;
-    const cluster = clusters[selectedClusterId];
-    if (!cluster) return;
+    const anyChecked = Object.values(mcSelections).some(s => s.on);
+    if (!anyChecked) return;
 
     const totalPl  = filtered.reduce((s, t) => s + (t.pl || 0), 0);
     const winCount = filtered.filter(t => t.type === 'Target').length;
@@ -237,60 +328,84 @@ function renderPerformanceCard(filtered) {
     document.getElementById('bigWr').innerText        = wr.toFixed(1) + '%';
     document.getElementById('periodTrades').innerText = filtered.length;
 
-    // Period P/L — per node currency
+    // Period P/L — grouped by currency (USD & INR separate)
     const plByCurr = {};
     filtered.forEach(t => {
-        const nodeIdx = t._nodeIdx ?? 0;
-        const c = cluster.nodes[nodeIdx]?.curr || '$';
-        plByCurr[c] = (plByCurr[c] || 0) + (t.pl || 0);
+        const curr = t._curr || '$';
+        plByCurr[curr] = (plByCurr[curr] || 0) + (t.pl || 0);
     });
-    const plStr = Object.entries(plByCurr).map(([c,v])=>`${v>=0?'+':''}${c}${v.toFixed(2)}`).join(' ') || '+$0.00';
-    const plEl = document.getElementById('periodPl');
-    plEl.innerHTML   = plStr;
-    plEl.style.color = totalPl >= 0 ? 'var(--accent)' : 'var(--danger)';
+    const plStr = Object.entries(plByCurr).map(([curr, v]) =>
+        `<span style="color:${v>=0?'var(--accent)':'var(--danger)'}">${v>=0?'+':''}${curr}${Math.abs(v).toFixed(2)}</span>`
+    ).join('&nbsp; ') || '<span>+$0.00</span>';
+    document.getElementById('periodPl').innerHTML = plStr;
 
-    // Return % — use setup balance as base, single currency only
-    const startBal = accVal === 'ALL'
-        ? cluster.nodes.reduce((s,n) => s+(n.balance??0), 0)
-        : (cluster.nodes[parseInt(accVal)]?.balance ?? 0);
-    const periodPerc  = startBal > 0 ? (totalPl / startBal) * 100 : 0;
+    // Return % per currency — use setup balance of checked nodes only
+    const startBalByCurr = {};
+    Object.entries(mcSelections).forEach(([cId, sel]) => {
+        if (!sel.on) return;
+        (clusters[cId]?.nodes || []).forEach((n, i) => {
+            if (!isNodeSelected(cId, i)) return;
+            const curr = n.curr || '$';
+            startBalByCurr[curr] = (startBalByCurr[curr] || 0) + (n.balance ?? 0);
+        });
+    });
+    const percParts = Object.entries(plByCurr).map(([curr, pl]) => {
+        const base = startBalByCurr[curr] || 0;
+        const pct  = base > 0 ? (pl / base * 100) : 0;
+        return (pct >= 0 ? '+' : '') + pct.toFixed(2) + '%';
+    });
     const percEl = document.getElementById('periodPerc');
-    percEl.innerText   = (periodPerc >= 0 ? '+' : '') + periodPerc.toFixed(2) + '%';
-    percEl.style.color = periodPerc >= 0 ? 'var(--accent)' : 'var(--danger)';
+    percEl.innerText   = percParts.join(' / ') || '0.00%';
+    percEl.style.color = totalPl >= 0 ? 'var(--accent)' : 'var(--danger)';
 
     const ring = document.getElementById('winRing');
     ring.className = 'win-circle ' + (wr >= 65 ? 'high' : wr >= 35 ? 'mid' : 'low');
 
-    // Account breakdown
-    const nodeEntries = accVal === 'ALL'
-        ? cluster.nodes.map((n, i) => ({ n, title: n.title || 'Acc '+(i+1), idx: i }))
-        : [{ n: cluster.nodes[parseInt(accVal)], title: cluster.nodes[parseInt(accVal)]?.title || 'Acc '+(parseInt(accVal)+1), idx: parseInt(accVal) }];
-
-    const breakdown = nodeEntries.map(({ n, title, idx }) => {
-        const nodeTrades = filtered.filter(t => t._nodeIdx === idx);
-        const nodePl     = nodeTrades.reduce((s, t) => s + (t.pl||0), 0);
-        const nodeWr     = nodeTrades.length ? ((nodeTrades.filter(t=>t.type==='Target').length/nodeTrades.length)*100).toFixed(0) : 0;
-        const c          = n?.curr || '$';
-        return `<b style="color:#ccc">${title}</b>: ${nodeTrades.length} trades | <span style="color:${nodePl>=0?'var(--accent)':'var(--danger)'}">${nodePl>=0?'+':''}${c}${nodePl.toFixed(0)}</span> | WR: ${nodeWr}%`;
-    }).join('&nbsp;&nbsp;|&nbsp;&nbsp;');
-    document.getElementById('accBreakdown').innerHTML = breakdown || '—';
-
-    // Current Balance — from live stats cache (instant, no async needed)
-    const currBalEl = document.getElementById('currBal');
-    const nodesToUse = accVal === 'ALL'
-        ? cluster.nodes.map((n,i) => ({n,i}))
-        : [{ n: cluster.nodes[parseInt(accVal)], i: parseInt(accVal) }];
-
-    const byCurr = {};
-    nodesToUse.forEach(({n, i}) => {
-        const s   = getNodeStats(selectedClusterId, i);
-        const c   = n.curr || '$';
-        const bal = s.currentBal ?? n.balance ?? 0;
-        byCurr[c] = (byCurr[c]||0) + bal;
+    // Account breakdown — all checked clusters & nodes
+    const breakdownParts = [];
+    Object.entries(mcSelections).forEach(([cId, sel]) => {
+        if (!sel.on) return;
+        const cluster = clusters[cId];
+        if (!cluster) return;
+        (cluster.nodes || []).forEach((n, i) => {
+            if (!isNodeSelected(cId, i)) return;
+            const nodeTrades = filtered.filter(t => t._nodeIdx === i && t._clusterId === cId);
+            const nodePl     = nodeTrades.reduce((s, t) => s + (t.pl||0), 0);
+            const nodeWr     = nodeTrades.length ? ((nodeTrades.filter(t=>t.type==='Target').length/nodeTrades.length)*100).toFixed(0) : 0;
+            const curr       = n.curr || '$';
+            breakdownParts.push(
+                `<span style="color:#666">${cluster.title}·</span><b style="color:#ccc">${n.title||'Acc'+(i+1)}</b>: ${nodeTrades.length}T <span style="color:${nodePl>=0?'var(--accent)':'var(--danger)'}">${nodePl>=0?'+':''}${curr}${Math.abs(nodePl).toFixed(0)}</span> WR:${nodeWr}%`
+            );
+        });
     });
-    currBalEl.innerText = Object.entries(byCurr)
-        .map(([c,v]) => `${c}${v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`)
-        .join(' + ') || '$0.00';
+    document.getElementById('accBreakdown').innerHTML = breakdownParts.join('&emsp;|&emsp;') || '—';
+
+    // Current Balance — only checked nodes grouped by currency
+    const byCurr = {};
+    Object.entries(mcSelections).forEach(([cId, sel]) => {
+        if (!sel.on) return;
+        (clusters[cId]?.nodes || []).forEach((n, i) => {
+            if (!isNodeSelected(cId, i)) return;
+            const s    = getNodeStats(cId, i);
+            const curr = n.curr || '$';
+            byCurr[curr] = (byCurr[curr] || 0) + (s.currentBal ?? n.balance ?? 0);
+        });
+    });
+    document.getElementById('currBal').innerText = Object.entries(byCurr)
+        .map(([curr, v]) => `${curr}${v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`)
+        .join('  |  ') || '$0.00';
+
+    // Stats bar — pnl, trades, wr, green days
+    const allDatePl = {};
+    filtered.forEach(t => { if (t.date) allDatePl[t.date] = (allDatePl[t.date]||0)+(t.pl||0); });
+    const greenDays = Object.values(allDatePl).filter(v => v > 0).length;
+    const pnlParts  = Object.entries(plByCurr).map(([curr,v]) => `${v>=0?'+':''}${curr}${Math.abs(v).toFixed(2)}`).join(' / ');
+    const pnlEl = document.getElementById('pnl');
+    pnlEl.innerText   = pnlParts || '$0.00';
+    pnlEl.style.color = totalPl >= 0 ? 'var(--accent)' : 'var(--danger)';
+    document.getElementById('trades').innerText = filtered.length;
+    document.getElementById('wr').innerText     = filtered.length ? ((winCount/filtered.length)*100).toFixed(1)+'%' : '0%';
+    document.getElementById('gDays').innerText  = greenDays;
 }
 
 // ──────────────────────────────────────────────
@@ -298,23 +413,21 @@ function renderPerformanceCard(filtered) {
 // ──────────────────────────────────────────────
 function renderRecentSessions() {
     const container = document.getElementById('recentSessions');
-    const accVal    = document.getElementById('accFilter').value;
 
-    let source = [...allTrades];
-    if (accVal !== 'ALL') source = source.filter(t => t._nodeIdx === parseInt(accVal));
-    const recent = source.slice(0, 6); // already sorted desc
+    let source = allTrades.filter(t => isNodeSelected(t._clusterId, t._nodeIdx));
+    const recent = source.slice(0, 6);
 
     if (!recent.length) {
-        container.innerHTML = '<div style="color:#555; font-size:0.8rem; padding:20px;">No sessions found for selected filters.</div>';
+        container.innerHTML = '<div style="color:#555; font-size:0.8rem; padding:20px;">No sessions found. Select a cluster & account to view.</div>';
         return;
     }
 
     container.innerHTML = recent.map(t => `
-        <div class="recent-card">
+        <div class="recent-card" onclick="viewDeepDive('${t._nodeIdx}','${t._fbKey}','${t._clusterId||selectedClusterId}')" style="cursor:pointer;">
             <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:0.85rem;">
                 <span>${t.date} | <span style="color:var(--gold)">${t._nodeTitle}</span></span>
                 <span style="color:${(t.pl || 0) >= 0 ? 'var(--accent)' : 'var(--danger)'}">
-                    ${(t.pl || 0) >= 0 ? '+' : ''}$${(t.pl || 0).toFixed(2)}
+                    ${(t.pl || 0) >= 0 ? '+' : ''}${t._curr||'$'}${Math.abs(t.pl || 0).toFixed(2)}
                 </span>
             </div>
             <div style="font-size:0.72rem; margin-top:5px; color:var(--gold);">
@@ -339,18 +452,23 @@ function renderCalendar(filtered) {
     const calArea = document.getElementById('calendarArea');
     calArea.innerHTML = '';
 
-    // Build month list
+    // Build month list based on range
     const months = [];
     let count = 1;
-    if (range === '1week')   count = 1;
-    else if (range === '3months') count = 3;
-    else if (range === '1year')   count = 12;
-    else if (range === '3year')   count = 36;
-    else if (range === 'all')     count = 60;
+    if      (range === '3months')  count = 3;
+    else if (range === 'halfyear') count = 6;
+    else if (range === '1year')    count = 12;
+    else if (range === '2025')     { for (let m=0;m<12;m++) months.push({m,y:2025}); }
+    else if (range === '2026')     { for (let m=0;m<12;m++) months.push({m,y:2026}); }
+    else if (range === '2027')     { for (let m=0;m<12;m++) months.push({m,y:2027}); }
+    else if (range === 'all')      count = 60;
+    else if (range === 'custom')   count = 12;
 
-    for (let i = count - 1; i >= 0; i--) {
-        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        months.push({ m: d.getMonth(), y: d.getFullYear() });
+    if (!months.length) {
+        for (let i = count - 1; i >= 0; i--) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            months.push({ m: d.getMonth(), y: d.getFullYear() });
+        }
     }
 
     // Build daily trade map for fast lookup
@@ -413,7 +531,7 @@ function renderCalendar(filtered) {
                 <span class="d-num">${d}</span>
                 ${dayTr.length > 0 ? `
                     <span style="font-weight:bold; font-size:0.72rem; color:${dayPL >= 0 ? '#00ff41' : '#ff3131'}; text-align:center;">
-                        ${dayPL >= 0 ? '+' : ''}$${Math.abs(dayPL).toFixed(0)}
+                        ${dayPL >= 0 ? '+' : ''}${dayTr[0]?._curr||'$'}${Math.abs(dayPL).toFixed(0)}
                     </span>
                     <span class="d-trades">${dayTr.length} trade${dayTr.length > 1 ? 's' : ''}</span>
                 ` : ''}
@@ -476,9 +594,11 @@ window.openDayTrades = function (date, trades) {
 // ──────────────────────────────────────────────
 // VIEW DEEP DIVE (Single trade detail)
 // ──────────────────────────────────────────────
-window.viewDeepDive = function (nodeIdxStr, fbKey) {
+window.viewDeepDive = function (nodeIdxStr, fbKey, clusterId) {
     const nodeIdx = parseInt(nodeIdxStr);
-    const t = allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey);
+    const cId = clusterId || selectedClusterId;
+    const t = allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey && (x._clusterId || selectedClusterId) === cId)
+           || allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey);
     if (!t) return;
 
     // Always ensure modal is open (works from both calendar day-list AND list view)
@@ -582,10 +702,7 @@ window.viewDeepDive = function (nodeIdxStr, fbKey) {
 // HELPER — Get all trades for a specific date (filtered by current acc filter)
 // ──────────────────────────────────────────────
 window.allTradesForDate = function (date) {
-    const accVal = document.getElementById('accFilter').value;
-    let src = allTrades.filter(t => t.date === date);
-    if (accVal !== 'ALL') src = src.filter(t => t._nodeIdx === parseInt(accVal));
-    return src;
+    return allTrades.filter(t => t.date === date && isNodeSelected(t._clusterId, t._nodeIdx));
 };
 
 // ──────────────────────────────────────────────
@@ -595,16 +712,18 @@ window.deleteScreenshot = async function (nodeIdxStr, fbKey) {
     if (!confirm('Delete this screenshot permanently from Firebase?\n\nIt will also disappear in Trade History on index.html.')) return;
 
     const nodeIdx = parseInt(nodeIdxStr);
-    const path    = `isi_v6/clusters/${selectedClusterId}/nodes/${nodeIdx}/tradeHistory/${fbKey}/image`;
+    const t = allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey);
+    const cId = t?._clusterId || selectedClusterId;
+    const path = `isi_v6/clusters/${cId}/nodes/${nodeIdx}/tradeHistory/${fbKey}/image`;
 
     try {
-        await update(ref(db, `isi_v6/clusters/${selectedClusterId}/nodes/${nodeIdx}/tradeHistory/${fbKey}`), {
+        await update(ref(db, `isi_v6/clusters/${cId}/nodes/${nodeIdx}/tradeHistory/${fbKey}`), {
             image: null
         });
 
         // Update local state
-        const t = allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey);
-        if (t) t.image = null;
+        const tFound = allTrades.find(x => x._nodeIdx === nodeIdx && x._fbKey === fbKey && x._clusterId === cId);
+        if (tFound) tFound.image = null;
 
         alert('✅ Screenshot deleted from Firebase successfully!');
         // Re-render deep dive without screenshot
@@ -779,10 +898,10 @@ function renderListView() {
     }).join('');
 }
 
-// Also re-render list when filters change
-const _origRenderAll = window.onFilterChange;
+// Also re-render list view when filters change
+const _origOnFilter = window.onFilterChange;
 window.onFilterChange = function() {
-    if (_origRenderAll) _origRenderAll();
+    if (_origOnFilter) _origOnFilter();
     const mode = document.getElementById('calViewMode')?.value;
     if (mode === 'list') renderListView();
 };
@@ -849,6 +968,18 @@ let _mcSel     = {};   // { cId: { on:bool, nodes:{nIdx:bool} } }
 let _mcChart   = null;
 let _mcRngIdx  = 1;    // default Monthly
 const MC_RANGES = [7, 30, 90, 180, 365];
+
+// USD→INR rate (cached, falls back to 84)
+let _usdInrRate = 84;
+async function getUsdInrRate() {
+    if (_usdInrRate !== 84) return _usdInrRate;
+    try {
+        const r = await fetch('https://open.er-api.com/v6/latest/USD');
+        const d = await r.json();
+        if (d?.rates?.INR) _usdInrRate = d.rates.INR;
+    } catch(e) {}
+    return _usdInrRate;
+}
 
 function mcPulseColor(t) {
     if (!t) return '#c5a059';
@@ -1210,38 +1341,5 @@ window.confirmDeleteSS = async function() {
     alert(`✅ ${count} screenshot${count!==1?'s':''} deleted successfully!`);
 };
 
-// ── MC FULLSCREEN TOGGLE ──
-window.mcToggleFullscreen = function() {
-    const panel = document.getElementById('mcPanel');
-    const inner = panel?.querySelector('div');
-    const btn   = document.getElementById('mcFsBtn');
-    if (!inner) return;
 
-    if (inner.dataset.fs === '1') {
-        // Restore
-        inner.style.maxWidth  = '900px';
-        inner.style.margin    = '0 auto';
-        inner.style.height    = '';
-        panel.style.padding   = '16px';
-        if (btn) btn.textContent = '⛶';
-        inner.dataset.fs = '0';
-        // Restore chart height
-        const chartBox = inner.querySelector('#mcEquityCanvas')?.parentElement;
-        if (chartBox) chartBox.style.height = '200px';
-    } else {
-        // Fullscreen
-        inner.style.maxWidth  = '100%';
-        inner.style.margin    = '0';
-        inner.style.height    = '100vh';
-        inner.style.overflowY = 'auto';
-        inner.style.borderRadius = '0';
-        panel.style.padding   = '0';
-        if (btn) btn.textContent = '✕FS';
-        inner.dataset.fs = '1';
-        // Expand chart height
-        const chartBox = inner.querySelector('#mcEquityCanvas')?.parentElement;
-        if (chartBox) chartBox.style.height = '320px';
-    }
-    // Resize chart
-    if (_mcChart) setTimeout(() => _mcChart.resize(), 100);
-};
+
