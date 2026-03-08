@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ISI Institutional Monitoring v6.0</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        body { padding: 20px; padding-bottom: 0; }
+        /* Monitoring container max-width */
+        .mon-container { max-width: 1350px; margin: auto; }
+    </style>
+</head>
+<body>
+<div class="mon-container">
+
+    <!-- HEADER -->
+    <div class="mon-header">
+        <div>
+            <div class="mon-title">INSTITUTIONAL <span style="color:var(--gold)">MONITORING</span></div>
+            <div id="fbMonStatus" style="font-size:0.62rem; color:#555; margin-top:3px;">● CONNECTING TO FIREBASE...</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <a href="index.html" class="btn-back">← Terminal</a>
+            <a href="multicluster.html" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#000d1a,#001a33);border:2px solid #00aaff;color:#00aaff;padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;">
+                📊 MULTI CLUSTER
+            </a>
+            <a href="knowledge.html" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#0a0800,#1a1200);border:2px solid var(--gold);color:var(--gold);padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;">
+                📚 KNOWLEDGE BASE
+            </a>
+        </div>
+    </div>
+
+    <!-- ── FILTERS ── -->
+    <div class="mon-filters">
+        <div class="filter-group">
+            <label>📁 Cluster</label>
+            <select id="clusterFilter" onchange="onFilterChange()">
+                <option value="">— Loading Clusters... —</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>🔖 Account View</label>
+            <select id="accFilter" onchange="onFilterChange()" disabled>
+                <option value="ALL">All Accounts (Combined)</option>
+            </select>
+        </div>
+        <div class="filter-group">
+            <label>📅 Timeline Range</label>
+            <select id="timeRange" onchange="onFilterChange()">
+                <option value="1week">Last 7 Days</option>
+                <option value="current" selected>Current Month</option>
+                <option value="3months">Last 3 Months</option>
+                <option value="1year">Last 1 Year</option>
+                <option value="3year">Last 3 Years</option>
+                <option value="all">Total History</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- ── PERFORMANCE OVERVIEW ── -->
+    <div class="perf-overview">
+        <div class="win-circle-container">
+            <div id="winRing" class="win-circle">
+                <span style="font-size:0.65rem; color:#666; text-transform:uppercase;">Win Rate</span>
+                <span id="bigWr" style="font-size:1.8rem; font-weight:900; color:var(--gold);">0%</span>
+            </div>
+        </div>
+        <div class="perf-data-grid">
+            <div class="data-item">
+                <div class="data-label">Current Balance</div>
+                <div id="currBal" class="data-val" style="color:var(--gold);">—</div>
+            </div>
+            <div class="data-item">
+                <div class="data-label">Period P/L</div>
+                <div id="periodPl" class="data-val">$0.00</div>
+            </div>
+            <div class="data-item">
+                <div class="data-label">Return %</div>
+                <div id="periodPerc" class="data-val">0.00%</div>
+            </div>
+            <div class="data-item">
+                <div class="data-label">Trade Count</div>
+                <div id="periodTrades" class="data-val" style="color:var(--gold);">0</div>
+            </div>
+            <div class="data-item" style="grid-column:span 4;">
+                <div class="data-label">Account Breakdown</div>
+                <div id="accBreakdown" style="font-size:0.72rem; color:#aaa; margin-top:5px; line-height:1.6;">—</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── STATS BAR ── -->
+    <div class="stats-bar">
+        <div class="stat-box">
+            <div style="font-size:0.65rem; color:#666; text-transform:uppercase; letter-spacing:1px;">Total P/L</div>
+            <div id="pnl" class="stat-val">$0.00</div>
+        </div>
+        <div class="stat-box">
+            <div style="font-size:0.65rem; color:#666; text-transform:uppercase; letter-spacing:1px;">Executions</div>
+            <div id="trades" class="stat-val">0</div>
+        </div>
+        <div class="stat-box">
+            <div style="font-size:0.65rem; color:#666; text-transform:uppercase; letter-spacing:1px;">Win Rate</div>
+            <div id="wr" class="stat-val">0%</div>
+        </div>
+        <div class="stat-box">
+            <div style="font-size:0.65rem; color:#666; text-transform:uppercase; letter-spacing:1px;">Green Days</div>
+            <div id="gDays" class="stat-val">0</div>
+        </div>
+        <div class="stat-box" style="border-left:1px solid #2a0000; margin-left:6px; padding-left:12px;">
+            <div style="font-size:0.65rem; color:#666; text-transform:uppercase; letter-spacing:1px;">Screenshots</div>
+            <button onclick="openDeleteSS()" style="background:#1a0000;border:1px solid #cc0000;color:#cc0000;padding:5px 10px;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;margin-top:3px;letter-spacing:0.5px;">🗑 DELETE ALL</button>
+        </div>
+    </div>
+
+    <!-- ── RECENT SESSIONS ── -->
+    <div class="recent-container">
+        <h2 style="font-size:0.88rem;">Recent 6 Sessions Recap</h2>
+        <div id="recentSessions" class="recent-grid">
+            <div style="color:#555; font-size:0.8rem; padding:20px;">Select a cluster to view sessions...</div>
+        </div>
+    </div>
+
+    <!-- ── CALENDAR / LIST TOGGLE + AI ── -->
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:18px 0 10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+            <span style="font-size:0.6rem;color:#555;letter-spacing:2px;text-transform:uppercase;">View</span>
+            <select id="calViewMode" onchange="onCalViewMode()" style="background:#080808;color:var(--gold);border:1px solid var(--gold);padding:7px 14px;border-radius:5px;font-size:0.72rem;font-weight:bold;cursor:pointer;">
+                <option value="calendar">📅 Calendar</option>
+                <option value="list">📋 List View</option>
+            </select>
+        </div>
+        <button onclick="runMonAI()" style="background:linear-gradient(135deg,#000800,#001400);border:1px solid var(--accent);color:var(--accent);padding:8px 16px;border-radius:5px;font-size:0.7rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">
+            🤖 AI FULL ANALYSIS
+        </button>
+    </div>
+    <!-- AI BOX -->
+    <div id="monAIBox" style="display:none;margin-bottom:14px;"></div>
+
+    <!-- ── CALENDAR ── -->
+    <div id="calendarArea"></div>
+
+    <!-- ── LIST VIEW ── -->
+    <div id="listViewArea" style="display:none;"></div>
+
+</div><!-- /mon-container -->
+
+<!-- ===== ABOUT FOOTER ===== -->
+<footer id="aboutSection" style="background:#000;border-top:1px solid #1a1a00;margin-top:40px;">
+
+    <!-- BRAND HERO -->
+    <div style="text-align:center;padding:40px 20px 28px;border-bottom:1px solid #111;">
+        <div style="font-size:2rem;font-weight:900;color:var(--gold);letter-spacing:6px;font-family:'Segoe UI',sans-serif;">INFLLAX</div>
+        <div style="font-size:0.65rem;color:#555;letter-spacing:4px;margin-top:6px;">INSTITUTIONAL INTELLIGENCE · PRECISION EXECUTION · RULE-BASED SYSTEMS</div>
+        <div style="width:60px;height:2px;background:var(--gold);margin:16px auto 0;"></div>
+    </div>
+
+    <!-- ABOUT GRID -->
+    <div style="max-width:1200px;margin:0 auto;padding:36px 24px;display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:28px;">
+
+        <!-- WHAT IS THIS SYSTEM -->
+        <div>
+            <div style="font-size:0.6rem;color:var(--gold);letter-spacing:3px;font-weight:bold;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:1px;background:var(--gold);display:inline-block;"></span>
+                SYSTEM OVERVIEW
+            </div>
+            <div style="font-size:0.73rem;color:#888;line-height:1.8;">
+                <b style="color:#ccc;">ISI Terminal v6.0</b> ek institutional-grade trading journal aur execution discipline platform hai.
+                Yeh system retail traders ko institutional-level structure provide karta hai — jaise hedge funds aur prop desks use karte hain.
+                <br><br>
+                Har trade ke pehle <b style="color:var(--gold);">mandatory pre-entry analysis</b> hoti hai — HTF/LTF bias confirm hone ke baad hi terminal access milti hai.
+            </div>
+        </div>
+
+        <!-- DESIGN LOGIC -->
+        <div>
+            <div style="font-size:0.6rem;color:var(--gold);letter-spacing:3px;font-weight:bold;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:1px;background:var(--gold);display:inline-block;"></span>
+                DESIGN PHILOSOPHY
+            </div>
+            <div style="font-size:0.73rem;color:#888;line-height:1.8;">
+                System is principle pe design hua hai: <b style="color:#ccc;">"Process over outcome."</b>
+                <br><br>
+                Trader ka focus P/L pe nahi, <b style="color:var(--gold);">execution quality</b> pe hona chahiye. Agar process sahi hai — results automatically follow karte hain.
+                <br><br>
+                Har session mein trader ko apna <b style="color:#ccc;">HTF structure, LTF confirmation, SMC confluence</b> aur psychological state document karna padta hai — tabhi execute kar sakta hai.
+            </div>
+        </div>
+
+        <!-- HOW IT WORKS -->
+        <div>
+            <div style="font-size:0.6rem;color:var(--gold);letter-spacing:3px;font-weight:bold;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:1px;background:var(--gold);display:inline-block;"></span>
+                HOW IT WORKS
+            </div>
+            <div style="font-size:0.7rem;color:#888;line-height:1.9;">
+                <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+                    <span style="color:var(--gold);font-weight:bold;flex-shrink:0;">01</span>
+                    <span><b style="color:#bbb;">Pre-Entry Analysis</b> — HTF/LTF bias engine, SMC flags, readiness score</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+                    <span style="color:var(--gold);font-weight:bold;flex-shrink:0;">02</span>
+                    <span><b style="color:#bbb;">Permission Matrix</b> — 8-star execution flow, conflict detection</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+                    <span style="color:var(--gold);font-weight:bold;flex-shrink:0;">03</span>
+                    <span><b style="color:#bbb;">Trade Journal</b> — Psychology, violations, scale, screenshot</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-bottom:6px;align-items:flex-start;">
+                    <span style="color:var(--gold);font-weight:bold;flex-shrink:0;">04</span>
+                    <span><b style="color:#bbb;">AI Review</b> — Gemini/Groq auto post-trade coaching</span>
+                </div>
+                <div style="display:flex;gap:8px;align-items:flex-start;">
+                    <span style="color:var(--gold);font-weight:bold;flex-shrink:0;">05</span>
+                    <span><b style="color:#bbb;">Monitoring</b> — Calendar, equity curve, deep-dive analytics</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- WHY BUILT -->
+        <div>
+            <div style="font-size:0.6rem;color:var(--gold);letter-spacing:3px;font-weight:bold;text-transform:uppercase;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                <span style="width:20px;height:1px;background:var(--gold);display:inline-block;"></span>
+                WHY IT WAS BUILT
+            </div>
+            <div style="font-size:0.73rem;color:#888;line-height:1.8;">
+                Most retail traders fail not because they lack strategy — <b style="color:#ccc;">but because they lack discipline infrastructure.</b>
+                <br><br>
+                ISI Terminal fills this gap. It forces the trader to slow down, document every decision, and review every outcome — creating a <b style="color:var(--gold);">feedback loop</b> that compounds improvement over time.
+                <br><br>
+                <i style="color:#555;">"Institutional edge is not a strategy. It is a system."</i>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- TECH STACK -->
+    <div style="border-top:1px solid #111;border-bottom:1px solid #111;padding:20px 24px;background:#040404;">
+        <div style="max-width:1200px;margin:0 auto;">
+            <div style="font-size:0.58rem;color:#444;letter-spacing:3px;text-transform:uppercase;margin-bottom:14px;">TECHNOLOGY STACK</div>
+            <div style="display:flex;flex-wrap:wrap;gap:10px;">
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">⚡ Vanilla JS (ES Modules)</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">🔥 Firebase Realtime DB</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">🤖 Multi-AI Engine (Gemini · Groq · OpenRouter · Cohere)</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">📱 PWA Ready</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">📄 jsPDF Reports</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">📊 Chart.js Equity Curves</span>
+                <span style="background:#0a0a0a;border:1px solid #1a1a1a;padding:5px 12px;border-radius:4px;font-size:0.65rem;color:#666;">🌐 GitHub Pages Hosted</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- VERSION + CREDITS -->
+    <div style="max-width:1200px;margin:0 auto;padding:24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:20px;">
+        <div>
+            <div style="font-size:0.58rem;color:#444;letter-spacing:2px;margin-bottom:8px;">VERSION</div>
+            <div style="font-size:0.75rem;color:#666;">ISI Terminal <b style="color:var(--gold);">v6.0</b></div>
+            <div style="font-size:0.62rem;color:#333;margin-top:4px;">Active Development · 2025</div>
+        </div>
+        <div>
+            <div style="font-size:0.58rem;color:#444;letter-spacing:2px;margin-bottom:8px;">SYSTEM ARCHITECT</div>
+            <div style="font-size:0.75rem;color:#666;"><b style="color:#ccc;">Aarav (Ravi)</b></div>
+            <div style="font-size:0.62rem;color:#333;margin-top:4px;">Founder · Infllax</div>
+        </div>
+        <div>
+            <div style="font-size:0.58rem;color:#444;letter-spacing:2px;margin-bottom:8px;">QUICK LINKS</div>
+            <div style="display:flex;flex-direction:column;gap:5px;">
+                <a href="preentry.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ Pre-Entry Analysis</a>
+                <a href="index.html"    style="font-size:0.65rem;color:#555;text-decoration:none;">→ Live Terminal</a>
+                <a href="knowledge.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ Knowledge Base</a>
+                <a href="Settings.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ System Setup</a>
+            </div>
+        </div>
+    </div>
+
+    <!-- COPYRIGHT -->
+    <div style="text-align:center;padding:16px;border-top:1px solid #0d0d0d;font-size:0.6rem;color:#2a2a2a;letter-spacing:2px;">
+        © 2025 INFLLAX · ALL RIGHTS RESERVED · AARAV (RAVI) · ISI TERMINAL v6.0
+    </div>
+
+</footer>
+
+<!-- ── TRADE DETAIL MODAL ── -->
+<div id="tradeModal" class="mon-modal">
+    <div class="mon-modal-content">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #222; padding-bottom:14px; margin-bottom:14px;">
+            <h2 id="modalTitle" style="color:var(--gold); margin:0; border:none; padding:0;">Session Deep-Dive</h2>
+            <button onclick="closeModal()" style="background:var(--danger); border:none; color:#fff; padding:8px 16px; cursor:pointer; font-weight:bold; width:auto; border-radius:4px;">CLOSE ✕</button>
+        </div>
+        <div id="modalBody"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     MULTI CLUSTER EQUITY POPUP
+══════════════════════════════════════ -->
+<div id="mcPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;overflow-y:auto;padding:10px;">
+    <div style="background:#060606;border:2px solid #00aaff;border-radius:10px;max-width:900px;margin:0 auto;padding:16px;position:relative;">
+        <button onclick="closeMultiCluster()" style="position:absolute;top:10px;right:10px;background:#cc0000;border:none;color:#fff;padding:5px 12px;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.7rem;z-index:2;">✕</button>
+        <div style="font-size:0.62rem;color:#00aaff;letter-spacing:3px;font-weight:bold;margin-bottom:12px;padding-right:60px;">📊 MULTI CLUSTER EQUITY PULSE</div>
+
+        <!-- RANGE BUTTONS — overflow-x scroll on mobile, never wrap -->
+        <div style="display:flex;flex-direction:row;align-items:center;gap:5px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+            <button onclick="mcSetRange(0)" id="mcRng0" style="flex:0 0 auto;padding:5px 11px;border-radius:4px;font-size:0.6rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#666;letter-spacing:1px;">WEEKLY</button>
+            <button onclick="mcSetRange(1)" id="mcRng1" style="flex:0 0 auto;padding:5px 11px;border-radius:4px;font-size:0.6rem;font-weight:bold;cursor:pointer;border:1px solid var(--gold);background:#1a1200;color:var(--gold);letter-spacing:1px;">MONTHLY</button>
+            <button onclick="mcSetRange(2)" id="mcRng2" style="flex:0 0 auto;padding:5px 11px;border-radius:4px;font-size:0.6rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#666;letter-spacing:1px;">QUARTERLY</button>
+            <button onclick="mcSetRange(3)" id="mcRng3" style="flex:0 0 auto;padding:5px 11px;border-radius:4px;font-size:0.6rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#666;letter-spacing:1px;">HALF-YEARLY</button>
+            <button onclick="mcSetRange(4)" id="mcRng4" style="flex:0 0 auto;padding:5px 11px;border-radius:4px;font-size:0.6rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#666;letter-spacing:1px;">ANNUAL</button>
+            <div style="flex:0 0 auto;display:flex;align-items:center;gap:5px;background:#0a0a00;border:1px solid #2a2a00;border-radius:4px;padding:4px 9px;">
+                <span style="font-size:0.52rem;color:#555;letter-spacing:1px;">WIN</span>
+                <span id="mcWR" style="font-size:0.9rem;font-weight:900;color:var(--gold);">0%</span>
+            </div>
+            <button onclick="mcToggleFullscreen()" id="mcFsBtn" style="flex:0 0 auto;background:#111;border:1px solid #333;color:#888;padding:5px 9px;border-radius:4px;cursor:pointer;font-size:0.78rem;">⛶</button>
+        </div>
+
+        <!-- EQUITY CHART -->
+        <div style="background:#020202;border:1px solid #111;border-radius:6px;padding:8px;margin-bottom:12px;position:relative;height:185px;">
+            <canvas id="mcEquityCanvas" style="width:100%;height:100%;"></canvas>
+            <div id="mcChartEmpty" style="display:none;position:absolute;inset:0;align-items:center;justify-content:center;color:#333;font-size:0.72rem;">No trades found.</div>
+        </div>
+
+        <!-- STATS -->
+        <div id="mcStats" style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px;"></div>
+
+        <!-- CLUSTER + ACCOUNT LIST -->
+        <div style="font-size:0.52rem;color:#333;letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;">Filter Clusters & Accounts</div>
+        <div id="mcClusterList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     DELETE SCREENSHOTS POPUP
+══════════════════════════════════════ -->
+<div id="deleteSsPanel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:center;justify-content:center;">
+    <div style="background:#060606;border:2px solid #cc0000;border-radius:8px;padding:24px;max-width:380px;width:90%;">
+        <div style="font-size:0.68rem;color:#cc0000;letter-spacing:2px;font-weight:bold;margin-bottom:12px;">🗑 DELETE ALL SCREENSHOTS</div>
+        <div style="font-size:0.72rem;color:#777;margin-bottom:16px;line-height:1.6;">Permanently deletes all trade screenshots for selected cluster. Trade records will NOT be deleted.</div>
+        <div style="font-size:0.6rem;color:#555;margin-bottom:5px;letter-spacing:1px;">CLUSTER</div>
+        <select id="delSsCid" style="width:100%;background:#000;color:#ccc;border:1px solid #333;padding:8px;border-radius:4px;margin-bottom:12px;font-size:0.75rem;"></select>
+        <div style="font-size:0.6rem;color:#555;margin-bottom:5px;letter-spacing:1px;">CLUSTER SECURITY PASSWORD</div>
+        <input type="password" id="delSsPass" placeholder="Enter cluster password..." style="width:100%;background:#000;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;margin-bottom:12px;font-size:0.75rem;box-sizing:border-box;">
+        <div id="delSsErr" style="font-size:0.65rem;color:#cc0000;min-height:16px;margin-bottom:8px;"></div>
+        <div style="display:flex;gap:8px;">
+            <button onclick="closeDeleteSS()" style="flex:1;background:#111;border:1px solid #333;color:#888;padding:9px;border-radius:4px;cursor:pointer;font-size:0.72rem;">CANCEL</button>
+            <button id="delSsConfirmBtn" onclick="confirmDeleteSS()" style="flex:1;background:#1a0000;border:1px solid #cc0000;color:#cc0000;padding:9px;border-radius:4px;cursor:pointer;font-weight:bold;font-size:0.72rem;">🗑 CONFIRM DELETE</button>
+        </div>
+    </div>
+</div>
+
+<script type="module" src="monitoring.js"></script>
+</body>
+</html>

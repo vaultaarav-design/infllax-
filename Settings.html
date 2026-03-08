@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>ISI Institutional Command | Fund Setup v6.0</title>
+    <style>
+        :root { --gold: #c5a059; --bg: #050505; --card: #0d0d0d; --accent: #00c805; --danger: #ff3b3b; }
+        body { background: var(--bg); color: #e0e0e0; font-family: 'Segoe UI', sans-serif; margin: 0; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
+        
+        .top-global-bar { height: 80px; border-bottom: 2px solid var(--gold); display: flex; align-items: center; padding: 0 30px; justify-content: space-between; background: #000; }
+        .main-layout { display: flex; flex: 1; min-height: 0; }
+        .config-area { flex: 1.5; padding: 25px; overflow-y: auto; border-right: 1px solid #222; background: #080808; }
+        .inventory-area { flex: 1.5; padding: 25px; background: #050505; overflow-y: auto; }
+
+        .node-setup-card { background: #000; border: 1px solid #222; padding: 20px; margin-bottom: 15px; border-radius: 4px; position: relative; }
+        .node-setup-card::before { content: "FUND NODE"; position: absolute; top: -10px; left: 10px; background: var(--gold); color: #000; font-size: 0.6rem; padding: 2px 8px; font-weight: bold; }
+        
+        .input-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        
+        /* SIMPLIFIED DAILY TIMES - Exactly jaise tu chahta hai */
+        .days-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
+        .day-card { background: #0a0a0a; padding: 12px; border-radius: 4px; border: 1px solid #333; text-align: center; }
+        .day-name { font-weight: bold; color: var(--gold); font-size: 0.7rem; margin-bottom: 5px; }
+        .day-times { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 3px; }
+        .day-time-input { padding: 4px; background: #000; border: 1px solid #444; color: #fff; font-size: 0.65rem; width: 100%; }
+        
+        .risk-qty-row { display: flex; gap: 15px; align-items: center; margin-top: 10px; }
+        .qty-range { display: flex; gap: 5px; align-items: center; }
+        .qty-input { width: 50px; padding: 5px; background: #000; border: 1px solid #333; color: #fff; }
+        
+        .btn-deploy { background: linear-gradient(45deg, var(--gold), #d4b085); color: #000; padding: 18px; border: none; font-weight: bold; cursor: pointer; letter-spacing: 2px; width: 100%; font-size: 1.1rem; border-radius: 6px; margin-top: 20px; }
+        
+        .active-card { background: #0d0d0d; border-left: 4px solid var(--gold); padding: 15px; margin-bottom: 15px; border-radius: 6px; }
+        .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .m-val { font-size: 0.85rem; font-weight: bold; }
+        .isi-footer {
+            background: #000;
+            border-top: 1px solid #1a1a1a;
+            padding: 24px 20px 16px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        .isi-footer::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+        }
+        .footer-brand { font-size: 1rem; font-weight: 900; letter-spacing: 5px; color: var(--gold); text-transform: uppercase; margin-bottom: 2px; }
+        .footer-tagline { font-size: 0.55rem; color: #666; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 6px; }
+        .footer-meta { font-size: 0.62rem; color: #666; line-height: 1.7; }
+        .footer-meta span { color: #666; }
+        .footer-meta b { color: var(--gold); font-weight: 600; }
+        .footer-copy { font-size: 0.55rem; color: #444; margin-top: 6px; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
+    <div class="top-global-bar">
+        <div>
+            <div style="color: var(--gold); font-weight: bold; font-size: 1.4rem; letter-spacing: 2px;">ISI FUND ARCHITECTURE v6.0</div>
+            <div style="font-size: 0.6rem; color: #888;">DAILY TIME + QUANTITY MANAGER</div>
+        </div>
+        <div>
+            <button onclick="location.href='index.html'" style="background:var(--gold); color:#000; padding:10px 20px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">LIVE TERMINAL</button>
+        </div>
+    </div>
+
+    <div class="main-layout">
+        <div class="config-area">
+            <h3 style="color: var(--gold); margin-bottom:15px;">CLUSTER SETUP</h3>
+            <input type="text" id="deskTitle" placeholder="Cluster Name (e.g. ALPHA FUND)" style="width:100%; padding:12px; background:#000; border:2px solid var(--gold); border-radius:6px; font-size:1rem;">
+            
+            <select id="nodeQty" onchange="onNodeQtyChange()" style="width:100%; padding:12px; background:#000; color:#fff; border:2px solid var(--gold); border-radius:6px; margin:15px 0; font-size:1rem;">
+                <option value="0">Select Nodes</option>
+                <option value="1">1 Node</option>
+                <option value="3">3 Nodes</option>
+                <option value="5">5 Nodes</option>
+                <option value="custom">Custom</option>
+            </select>
+
+            <div id="customNodeBox" style="display:none; gap:8px; align-items:center; margin-bottom:12px;">
+                <input type="number" id="customNodeCount" min="1" max="20" placeholder="Count (1-20)"
+                    style="flex:1; padding:10px; background:#000; border:1px solid var(--gold); border-radius:4px; color:#fff; font-size:0.9rem;">
+                <button onclick="applyCustomNodes()"
+                    style="padding:10px 18px; background:var(--gold); color:#000; font-weight:bold; border:none; border-radius:4px; cursor:pointer; font-size:0.85rem;">SET</button>
+            </div>
+
+            <div id="nodeGrid"></div>
+
+            <input type="password" id="resetKey" placeholder="Security Key" style="width:100%; padding:12px; background:#000; border:1px solid #333; border-radius:4px; margin:10px 0;">
+            <button class="btn-deploy" id="btnDeploy">DEPLOY CLUSTER</button>
+
+            <!-- PRE-ENTRY CONFIG SECTION -->
+            <div style="margin-top:24px;border-top:1px solid #222;padding-top:20px;">
+                <h3 style="color:var(--gold);font-size:0.82rem;letter-spacing:2px;margin-bottom:14px;">⚙ PRE-ENTRY SYSTEM CONFIG</h3>
+
+                <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:0.7rem;color:#888;margin-bottom:8px;font-weight:bold;letter-spacing:1px;">MINIMUM ANALYSIS TIME GATE</div>
+                    <div style="font-size:0.62rem;color:#555;margin-bottom:8px;">Trader must spend minimum X minutes on pre-entry page before terminal access.</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="minAnalysisTime" style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:8px;border-radius:4px;">
+                            <option value="0">No minimum (bypass allowed)</option>
+                            <option value="300" selected>5 minutes (recommended)</option>
+                            <option value="600">10 minutes (strict)</option>
+                            <option value="900">15 minutes (institutional)</option>
+                        </select>
+                        <button onclick="savePreEntryConfig()" style="width:auto;padding:8px 16px;background:var(--gold);color:#000;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.75rem;">SAVE</button>
+                    </div>
+                </div>
+
+                <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:12px;">
+                    <div style="font-size:0.7rem;color:#888;margin-bottom:8px;font-weight:bold;letter-spacing:1px;">MINIMUM SCORE TO PROCEED</div>
+                    <div style="font-size:0.62rem;color:#555;margin-bottom:8px;">Pre-entry score must reach X/100 before terminal entry button activates.</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="minEntryScore" style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:8px;border-radius:4px;">
+                            <option value="0">No minimum</option>
+                            <option value="40">40/100 (basic)</option>
+                            <option value="60" selected>60/100 (recommended)</option>
+                            <option value="75">75/100 (strict institutional)</option>
+                            <option value="85">85/100 (elite only)</option>
+                        </select>
+                        <button onclick="savePreEntryConfig()" style="width:auto;padding:8px 16px;background:var(--gold);color:#000;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.75rem;">SAVE</button>
+                    </div>
+                </div>
+
+                <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;">
+                    <div style="font-size:0.7rem;color:#888;margin-bottom:8px;font-weight:bold;letter-spacing:1px;">CONFLICT BLOCK SETTING</div>
+                    <div style="font-size:0.62rem;color:#555;margin-bottom:8px;">When HTF/LTF conflict is detected, should terminal entry be blocked completely?</div>
+                    <div style="display:flex;gap:8px;align-items:center;">
+                        <select id="conflictBlock" style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:8px;border-radius:4px;">
+                            <option value="warn">Warning only (trader can override)</option>
+                            <option value="block" selected>Block entry (strict discipline)</option>
+                        </select>
+                        <button onclick="savePreEntryConfig()" style="width:auto;padding:8px 16px;background:var(--gold);color:#000;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.75rem;">SAVE</button>
+                    </div>
+                </div>
+
+                <div id="preEntryConfigStatus" style="margin-top:8px;font-size:0.68rem;color:#555;text-align:center;"></div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════
+                 BLOCK 1 — AI INTEGRATION
+            ═══════════════════════════════════════════ -->
+            <div style="margin-top:28px;border-top:2px solid #1a1a00;padding-top:22px;">
+
+                <!-- Header -->
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+                    <div>
+                        <h3 style="color:var(--gold);font-size:0.85rem;letter-spacing:2px;margin:0;">🤖 AI INTEGRATION</h3>
+                        <div style="font-size:0.6rem;color:#444;margin-top:3px;">Active provider auto-select karega — jo available ho woh use hoga</div>
+                    </div>
+                    <div id="aiActiveBadge" style="font-size:0.6rem;background:#0a0a00;border:1px solid #333;padding:4px 10px;border-radius:4px;color:#555;">
+                        Loading...
+                    </div>
+                </div>
+
+                <!-- PROVIDER DROPDOWN -->
+                <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:10px;">
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:8px;letter-spacing:1px;">SELECT PROVIDER</div>
+                    <div style="display:flex;gap:8px;">
+                        <select id="aiProviderDropdown" onchange="onProviderSelect()"
+                            style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;">
+                        </select>
+                        <button onclick="addCustomAI()"
+                            style="width:auto;padding:9px 14px;background:#0a0a0a;border:1px dashed #444;color:#666;border-radius:4px;font-size:0.68rem;cursor:pointer;white-space:nowrap;"
+                            onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
+                            onmouseout="this.style.borderColor='#444';this.style.color='#666'">
+                            ＋ Add AI
+                        </button>
+                    </div>
+                </div>
+
+                <!-- KEY INPUT for selected provider -->
+                <div id="aiKeyPanel" style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:10px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div id="aiKeyLabel" style="font-size:0.7rem;color:#888;font-weight:bold;"></div>
+                        <a id="aiKeyLink" href="#" target="_blank"
+                            style="font-size:0.58rem;color:var(--gold);border:1px solid var(--gold);padding:2px 8px;border-radius:3px;text-decoration:none;">
+                            Get Free Key ↗
+                        </a>
+                    </div>
+                    <div id="aiKeyDesc" style="font-size:0.6rem;color:#444;margin-bottom:8px;"></div>
+                    <div style="display:flex;gap:8px;">
+                        <input type="password" id="aiKeyInput" placeholder="API Key..."
+                            style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:8px;border-radius:4px;font-family:monospace;font-size:0.73rem;">
+                        <button onclick="saveAIKey()"
+                            style="width:auto;padding:8px 14px;background:var(--gold);color:#000;border:none;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.72rem;">
+                            SAVE
+                        </button>
+                        <button onclick="testAIKey()"
+                            style="width:auto;padding:8px 12px;background:#111;color:#888;border:1px solid #333;border-radius:4px;font-weight:bold;cursor:pointer;font-size:0.72rem;">
+                            TEST
+                        </button>
+                    </div>
+                    <div id="aiKeyStatus" style="margin-top:7px;font-size:0.63rem;min-height:14px;"></div>
+                </div>
+
+                <!-- ALL PROVIDERS STATUS ROW -->
+                <div id="aiAllStatus" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;"></div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════
+                 BLOCK 2 — KNOWLEDGE BASE
+            ═══════════════════════════════════════════ -->
+            <div style="margin-top:28px;border-top:2px solid #1a1a00;padding-top:22px;">
+
+                <!-- Header -->
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+                    <div>
+                        <h3 style="color:var(--gold);font-size:0.85rem;letter-spacing:2px;margin:0;">📚 KNOWLEDGE BASE</h3>
+                        <div style="font-size:0.6rem;color:#444;margin-top:3px;">SOP · Checklist · Notes · Training · Structure — Firebase mein permanent save</div>
+                    </div>
+                    <a href="knowledge.html" target="_blank"
+                        style="font-size:0.65rem;color:var(--gold);border:1px solid var(--gold);padding:5px 12px;border-radius:4px;text-decoration:none;font-weight:bold;white-space:nowrap;">
+                        📖 Open Full Page ↗
+                    </a>
+                </div>
+
+                <!-- CATEGORY DROPDOWN -->
+                <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:10px;">
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:8px;letter-spacing:1px;">CATEGORY / TYPE</div>
+                    <div style="display:flex;gap:8px;">
+                        <select id="kbCatDropdown" onchange="onKBCatSelect()"
+                            style="flex:1;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;">
+                            <option value="ALL">📚 All Entries</option>
+                            <option value="SOP">📘 SOP (Standard Operating Procedure)</option>
+                            <option value="Checklist">✅ Checklist</option>
+                            <option value="Notes">📝 Market Notes</option>
+                            <option value="Training">🎓 Training</option>
+                            <option value="Structure">📊 Structure Analysis</option>
+                        </select>
+                        <button onclick="openKBAddEntry()"
+                            style="width:auto;padding:9px 14px;background:linear-gradient(135deg,#1a1200,#2a1e00);border:2px solid var(--gold);color:var(--gold);border-radius:4px;font-weight:bold;font-size:0.72rem;cursor:pointer;white-space:nowrap;">
+                            ＋ ADD ENTRY
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ENTRIES LIST (compact) -->
+                <div id="kbSettingsList" style="max-height:320px;overflow-y:auto;"></div>
+
+                <!-- STATS -->
+                <div id="kbSettingsStats" style="margin-top:8px;font-size:0.6rem;color:#444;text-align:center;"></div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════
+                 ADD ENTRY MODAL (inline, for settings page)
+            ═══════════════════════════════════════════ -->
+            <!-- ═══ KB ADD/EDIT ENTRY MODAL ═══ -->
+            <div id="kbAddModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:1000;align-items:flex-start;justify-content:center;padding:16px;overflow-y:auto;">
+                <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-top:3px solid var(--gold);border-radius:8px;width:100%;max-width:680px;padding:24px;position:relative;margin:auto;">
+                    <button onclick="closeKBModal()" style="position:absolute;top:12px;right:12px;background:var(--danger);color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:0.7rem;font-weight:bold;">✕ CLOSE</button>
+                    <h3 style="color:var(--gold);font-size:0.85rem;letter-spacing:2px;margin-bottom:18px;" id="kbModalHeading">ADD NEW ENTRY</h3>
+
+                    <!-- TITLE -->
+                    <div style="font-size:0.6rem;color:#666;margin-bottom:5px;letter-spacing:1px;">TITLE *</div>
+                    <input type="text" id="kbEntryTitle" placeholder="e.g. Pre-Entry HTF Analysis SOP"
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.78rem;margin-bottom:12px;">
+
+                    <!-- CATEGORY -->
+                    <div style="font-size:0.6rem;color:#666;margin-bottom:5px;letter-spacing:1px;">CATEGORY *</div>
+                    <select id="kbEntryType" style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;margin-bottom:12px;">
+                        <option value="SOP">📘 SOP</option>
+                        <option value="Checklist">✅ Checklist</option>
+                        <option value="Notes">📝 Market Notes</option>
+                        <option value="Training">🎓 Training</option>
+                        <option value="Structure">📊 Structure Analysis</option>
+                    </select>
+
+                    <!-- DESCRIPTION -->
+                    <div style="font-size:0.6rem;color:#666;margin-bottom:5px;letter-spacing:1px;">DESCRIPTION</div>
+                    <input type="text" id="kbEntryDesc" placeholder="Short description — what is this about?"
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;margin-bottom:12px;">
+
+                    <!-- LINK TO -->
+                    <div style="font-size:0.6rem;color:#666;margin-bottom:5px;letter-spacing:1px;">LINK TO PARENT (optional — SOP ke niche attach karo)</div>
+                    <select id="kbEntryLink" style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.73rem;margin-bottom:16px;">
+                        <option value="">— No parent link —</option>
+                    </select>
+
+                    <!-- DIVIDER -->
+                    <div style="height:1px;background:#1a1a1a;margin-bottom:16px;"></div>
+
+                    <!-- MAIN CONTENT BLOCK -->
+                    <div style="font-size:0.7rem;color:#c5a059;font-weight:bold;letter-spacing:1px;margin-bottom:10px;">📎 MAIN CONTENT</div>
+                    <div id="kbMainBlock" style="background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:12px;">
+                        <!-- TAB SWITCHER -->
+                        <div style="display:flex;gap:6px;margin-bottom:12px;">
+                            <button id="tabUploadBtn" onclick="switchKBTab('upload')"
+                                style="padding:6px 14px;border-radius:4px;font-size:0.68rem;font-weight:bold;cursor:pointer;border:1px solid var(--gold);background:#1a1200;color:var(--gold);">
+                                📁 UPLOAD FILE
+                            </button>
+                            <button id="tabTextBtn" onclick="switchKBTab('text')"
+                                style="padding:6px 14px;border-radius:4px;font-size:0.68rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#666;">
+                                ✏ TEXT / NOTES
+                            </button>
+                        </div>
+
+                        <!-- UPLOAD TAB -->
+                        <div id="tabUpload">
+                            <div id="kbDropZone" onclick="document.getElementById('kbFileInput').click()"
+                                style="border:2px dashed #333;border-radius:6px;padding:28px;text-align:center;cursor:pointer;transition:0.2s;"
+                                ondragover="event.preventDefault();this.style.borderColor='var(--gold)'"
+                                ondragleave="this.style.borderColor='#333'"
+                                ondrop="handleKBDrop(event)">
+                                <div style="font-size:1.8rem;margin-bottom:8px;">📂</div>
+                                <div style="font-size:0.75rem;color:#888;margin-bottom:4px;">Click karo ya file drag karo</div>
+                                <div style="font-size:0.62rem;color:#444;">PDF · Word · Excel · TXT · Images · Any file</div>
+                            </div>
+                            <input type="file" id="kbFileInput" style="display:none" accept="*/*" onchange="handleKBFile(this.files[0])">
+                            <div id="kbFilePreview" style="margin-top:10px;display:none;">
+                                <div style="display:flex;align-items:center;gap:8px;background:#111;border:1px solid #222;border-radius:5px;padding:10px;">
+                                    <span id="kbFileIcon" style="font-size:1.4rem;">📄</span>
+                                    <div style="flex:1;">
+                                        <div id="kbFileName" style="font-size:0.73rem;color:#ddd;font-weight:bold;"></div>
+                                        <div id="kbFileSize" style="font-size:0.6rem;color:#555;"></div>
+                                    </div>
+                                    <button onclick="clearKBFile()" style="background:var(--danger);color:#fff;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:0.62rem;">✕</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- TEXT TAB -->
+                        <div id="tabText" style="display:none;">
+                            <textarea id="kbEntryContent" placeholder="Apna content yahan type karo ya paste karo..."
+                                style="width:100%;background:#111;color:#ccc;border:1px solid #333;padding:10px;border-radius:4px;font-size:0.72rem;font-family:'Segoe UI',sans-serif;resize:vertical;min-height:120px;line-height:1.6;"></textarea>
+                        </div>
+                    </div>
+
+                    <!-- TAGS -->
+                    <div style="font-size:0.6rem;color:#666;margin-bottom:5px;letter-spacing:1px;">TAGS (comma separated)</div>
+                    <input type="text" id="kbEntryTags" placeholder="e.g. HTF, gold, risk, pre-entry"
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;margin-bottom:16px;">
+
+                    <!-- DIVIDER -->
+                    <div style="height:1px;background:#1a1a1a;margin-bottom:16px;"></div>
+
+                    <!-- SUB-SECTIONS -->
+                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+                        <div style="font-size:0.7rem;color:#c5a059;font-weight:bold;letter-spacing:1px;">📑 SUB-SECTIONS</div>
+                        <button onclick="addKBSubSection()"
+                            style="background:#0a0800;border:1px dashed #c5a059;color:#c5a059;padding:5px 12px;border-radius:4px;font-size:0.65rem;cursor:pointer;font-weight:bold;">
+                            ＋ ADD SUB-SECTION
+                        </button>
+                    </div>
+                    <div id="kbSubSections" style="display:flex;flex-direction:column;gap:10px;"></div>
+
+                    <!-- MODAL FOOTER -->
+                    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid #1a1a1a;">
+                        <button onclick="closeKBModal()" style="background:#111;color:#888;border:1px solid #333;padding:10px 18px;border-radius:5px;cursor:pointer;font-size:0.75rem;">CANCEL</button>
+                        <button onclick="saveKBEntry()" style="background:var(--gold);color:#000;border:none;padding:10px 24px;border-radius:5px;font-weight:bold;font-size:0.78rem;cursor:pointer;letter-spacing:1px;">💾 SAVE TO FIREBASE</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ADD CUSTOM AI MODAL -->
+            <div id="customAIModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:1000;align-items:center;justify-content:center;padding:16px;">
+                <div style="background:#0a0a0a;border:1px solid #2a2a2a;border-top:3px solid var(--gold);border-radius:8px;width:100%;max-width:480px;padding:24px;position:relative;">
+                    <button onclick="closeCustomAI()" style="position:absolute;top:12px;right:12px;background:var(--danger);color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:0.7rem;">✕</button>
+                    <h3 style="color:var(--gold);font-size:0.85rem;letter-spacing:2px;margin-bottom:18px;">➕ ADD CUSTOM AI</h3>
+
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:5px;">AI NAME *</div>
+                    <input type="text" id="caiName" placeholder="e.g. Mistral AI, DeepSeek..."
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.75rem;margin-bottom:10px;">
+
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:5px;">API ENDPOINT URL *</div>
+                    <input type="text" id="caiUrl" placeholder="https://api.example.com/v1/chat/completions"
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.72rem;font-family:monospace;margin-bottom:10px;">
+
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:5px;">MODEL NAME *</div>
+                    <input type="text" id="caiModel" placeholder="e.g. mistral-7b-instruct"
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.72rem;font-family:monospace;margin-bottom:10px;">
+
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:5px;">API KEY</div>
+                    <input type="password" id="caiKey" placeholder="Bearer token / API key..."
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.72rem;font-family:monospace;margin-bottom:10px;">
+
+                    <div style="font-size:0.62rem;color:#666;margin-bottom:5px;">FREE TIER LINK</div>
+                    <input type="text" id="caiLink" placeholder="https://..."
+                        style="width:100%;background:#111;color:#fff;border:1px solid #333;padding:9px;border-radius:4px;font-size:0.72rem;margin-bottom:18px;">
+
+                    <div style="display:flex;gap:10px;justify-content:flex-end;">
+                        <button onclick="closeCustomAI()" style="background:#111;color:#888;border:1px solid #333;padding:10px 18px;border-radius:5px;cursor:pointer;font-size:0.75rem;">CANCEL</button>
+                        <button onclick="saveCustomAI()" style="background:var(--gold);color:#000;border:none;padding:10px 22px;border-radius:5px;font-weight:bold;font-size:0.78rem;cursor:pointer;">ADD AI</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="inventory-area">
+            <h3 style="color: var(--gold);">ACTIVE CLUSTERS</h3>
+            <div id="activeList"></div>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="isi-footer">
+        <div class="footer-brand">INFLLAX</div>
+        <div class="footer-tagline">Institutional Intelligence · Precision Execution · Rule-Based Systems</div>
+        <div class="footer-meta">
+            <span>Platform</span> &nbsp;·&nbsp; <b>ISI Terminal v6.0</b> &nbsp;·&nbsp; <span>Institutional Grade Trading Infrastructure</span><br>
+            <span>Project Head</span> &nbsp;·&nbsp; <b>Aarav (Ravi)</b> &nbsp;·&nbsp; <span>Founder & System Architect, Infllax</span>
+        </div>
+        <div class="footer-copy">© 2025 INFLLAX · ALL RIGHTS RESERVED · AARAV (RAVI)</div>
+    </footer>
+
+    <script type="module" src="settings.js"></script>
+</body>
+</html>
