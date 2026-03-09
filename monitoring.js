@@ -48,6 +48,7 @@ onValue(ref(db, 'isi_v6/clusters'), (snap) => {
     clusters = snap.val() || {};
     document.getElementById('fbMonStatus').textContent = '● LIVE — Firebase Connected';
     document.getElementById('fbMonStatus').style.color = '#00c805';
+    renderHitMeter(); // update hit meter on cluster load
 
     // Init mcSelections for all clusters (all ON by default)
     Object.keys(clusters).forEach(cId => {
@@ -64,6 +65,7 @@ onValue(ref(db, 'isi_v6/stats'), (snap) => {
     liveStats = snap.val() || {};
     updateGridBalances();  // only update balance text, don't rebuild checkboxes
     renderAll();
+    if (Object.keys(clusters).length) renderHitMeter(); // refresh risk amounts with live stats
 });
 
 // ── PRE-ENTRY DATA LISTENER ──
@@ -1623,3 +1625,162 @@ window.downloadTxPDF = function() {
 };
 
 // loadTxHistory is called from renderAll() directly — no extra hook needed
+
+
+// ═══════════════════════════════════════════════════════
+// HIT METER — Live & Upcoming Sessions (15 min window)
+// ═══════════════════════════════════════════════════════
+
+function timeToMinutesMon(t) {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+}
+function formatMinSecMon(diffSeconds) {
+    if (diffSeconds <= 0) return '00:00';
+    const m = Math.floor(diffSeconds / 60);
+    const s = diffSeconds % 60;
+    return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function getSlotsMon(node, dayName) {
+    if (node.timeSlots && node.timeSlots[dayName] && Array.isArray(node.timeSlots[dayName])) {
+        return node.timeSlots[dayName].filter(sl => sl && sl.start).map((sl, i) => ({ ...sl, slotIdx: i }));
+    }
+    if (node.times && node.times[dayName] && node.times[dayName].start) {
+        const t = node.times[dayName];
+        return [{ start: t.start, end: t.end||'', expire: t.expire||'', risk: node.risk??null, slotIdx: 0 }];
+    }
+    return [];
+}
+
+let _hitMeterInterval = null;
+
+function renderHitMeter() {
+    // Stop previous ticker
+    clearInterval(_hitMeterInterval);
+
+    const grid = document.getElementById('hitMeterGrid');
+    const clockEl = document.getElementById('hitMeterClock');
+    if (!grid) return;
+
+    const dayName = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date().getDay()];
+
+    // Collect all sessions for today across ALL clusters
+    let sessions = [];
+    Object.entries(clusters).forEach(([cId, cluster]) => {
+        (cluster.nodes || []).forEach((node, nIdx) => {
+            const slots = getSlotsMon(node, dayName);
+            slots.forEach(slot => {
+                sessions.push({ cId, cluster, node, nIdx, slot });
+            });
+        });
+    });
+
+    if (!sessions.length) {
+        grid.innerHTML = '<div style="color:#333;font-size:0.68rem;text-align:center;padding:12px;">Aaj ke liye koi scheduled session nahi.</div>';
+        return;
+    }
+
+    function updateHitMeter() {
+        const now    = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        const nowSec = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+        if (clockEl) clockEl.textContent = now.toLocaleTimeString('en-GB', { hour12: false });
+
+        // Filter: show sessions that are LIVE or starting within 15 min, or in exit zone
+        const visible = sessions.filter(({ slot }) => {
+            const startMin  = timeToMinutesMon(slot.start);
+            const expireMin = timeToMinutesMon(slot.expire || slot.end);
+            if (startMin === null) return false;
+            // Show if: within 15 min of start OR currently active/exit zone (not yet expired)
+            if (expireMin !== null && nowMin > expireMin + 30) return false; // long expired, skip
+            return (startMin - nowMin) <= 15;
+        });
+
+        if (!visible.length) {
+            grid.innerHTML = '<div style="color:#333;font-size:0.68rem;text-align:center;padding:12px;font-style:italic;">Koi upcoming session 15 min mein nahi — next session ka intezaar karo.</div>';
+            return;
+        }
+
+        grid.innerHTML = '';
+        visible.forEach(({ cId, cluster, node, nIdx, slot }) => {
+            const startMin  = timeToMinutesMon(slot.start);
+            const endMin    = timeToMinutesMon(slot.end);
+            const expireMin = timeToMinutesMon(slot.expire || slot.end);
+            const riskPct   = slot.risk ?? node.risk ?? 0;
+            const stats     = liveStats[cId]?.[String(nIdx)] || {};
+            const liveBal   = stats.currentBal ?? node.balance ?? 0;
+            const riskAmt   = (liveBal * riskPct / 100);
+            const curr      = node.curr || '₹';
+
+            // Determine phase
+            let phase, label, borderCol, bgCol, glowCol, timeDisplay, subLabel;
+            const diffToStartSec = (startMin - nowMin) * 60 - now.getSeconds();
+            const diffToEndSec   = endMin   !== null ? (endMin   - nowMin) * 60 - now.getSeconds() : null;
+            const diffToExpSec   = expireMin !== null ? (expireMin - nowMin) * 60 - now.getSeconds() : null;
+
+            if (nowMin < startMin) {
+                // Upcoming — within 15 min
+                phase = 'upcoming';
+                label = '⏰ UPCOMING';
+                borderCol = '#c5a059'; bgCol = '#0d0800'; glowCol = 'rgba(197,160,89,0.15)';
+                timeDisplay = formatMinSecMon(diffToStartSec);
+                subLabel = 'STARTS IN';
+            } else if (endMin !== null && nowMin >= startMin && nowMin < endMin) {
+                phase = 'live';
+                label = '🟢 LIVE NOW';
+                borderCol = '#00c805'; bgCol = '#020d02'; glowCol = 'rgba(0,200,5,0.2)';
+                timeDisplay = formatMinSecMon(diffToEndSec > 0 ? diffToEndSec : 0);
+                subLabel = 'ENDS IN';
+            } else if (expireMin !== null && nowMin >= (endMin||startMin) && nowMin < expireMin) {
+                phase = 'exit';
+                label = '🟡 EXIT ZONE';
+                borderCol = '#ffcc00'; bgCol = '#0d0d00'; glowCol = 'rgba(255,204,0,0.15)';
+                timeDisplay = formatMinSecMon(diffToExpSec > 0 ? diffToExpSec : 0);
+                subLabel = 'EXPIRES IN';
+            } else {
+                return; // closed — skip
+            }
+
+            // Pulse animation for live
+            const pulseStyle = phase === 'live' ? 'animation:hmPulse 1.5s ease-in-out infinite;' : '';
+            const slotLabel  = slot.slotIdx > 0 ? ` · Slot ${slot.slotIdx + 1}` : '';
+
+            const row = document.createElement('div');
+            row.style.cssText = `background:${bgCol};border:1.5px solid ${borderCol};border-radius:7px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 0 8px ${glowCol};${pulseStyle}`;
+            row.innerHTML = `
+                <div style="flex:1;">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                        <span style="font-size:0.7rem;font-weight:bold;color:${borderCol};">${label}</span>
+                        <span style="font-size:0.55rem;color:#555;letter-spacing:1px;">${cluster.title}${slotLabel}</span>
+                    </div>
+                    <div style="font-size:0.82rem;font-weight:900;color:#fff;">${node.title || 'Account ' + (nIdx + 1)}</div>
+                    <div style="font-size:0.6rem;color:#666;font-family:monospace;margin-top:2px;">${slot.start||'--'} → ${slot.expire||slot.end||'--'}</div>
+                </div>
+                <div style="text-align:right;flex-shrink:0;margin-left:12px;">
+                    <div style="font-size:0.5rem;color:#555;letter-spacing:2px;margin-bottom:2px;">${subLabel}</div>
+                    <div class="hm-countdown-${cId}-${nIdx}-${slot.slotIdx}" style="font-size:1.3rem;font-weight:900;color:${borderCol};font-family:monospace;">${timeDisplay}</div>
+                    <div style="font-size:0.6rem;color:var(--gold);font-weight:bold;margin-top:3px;">${curr}${riskAmt.toLocaleString('en-IN',{maximumFractionDigits:0})} risk</div>
+                </div>`;
+            grid.appendChild(row);
+        });
+
+        // If nothing rendered (all closed)
+        if (!grid.children.length) {
+            grid.innerHTML = '<div style="color:#333;font-size:0.68rem;text-align:center;padding:12px;font-style:italic;">Koi active session nahi is waqt.</div>';
+        }
+    }
+
+    // Add pulse animation CSS once
+    if (!document.getElementById('hmPulseStyle')) {
+        const st = document.createElement('style');
+        st.id = 'hmPulseStyle';
+        st.textContent = '@keyframes hmPulse { 0%,100%{box-shadow:0 0 8px rgba(0,200,5,0.2);} 50%{box-shadow:0 0 18px rgba(0,200,5,0.5);} }';
+        document.head.appendChild(st);
+    }
+
+    updateHitMeter();
+    _hitMeterInterval = setInterval(updateHitMeter, 1000);
+}
+
+// Also refresh hit meter when liveStats update

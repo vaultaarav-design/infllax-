@@ -1191,6 +1191,40 @@ window.deleteKBEntry = function(key) {
 
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
+
+    // ── SETTINGS LOCK GATE ──
+    // Only permanent keys can unlock Settings. Temp password = blocked.
+    (function checkSettingsAccess() {
+        const overlay  = document.getElementById('settingsLockOverlay');
+        const tempWarn = document.getElementById('settingsTempWarn');
+        const expEl    = document.getElementById('settingsTempExpiry');
+        if (!overlay) return;
+
+        // Check if a temp password is currently active (user might have used it on terminal)
+        const tempData = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
+        const tempActive = tempData && tempData.pass && Date.now() < tempData.expires;
+
+        // Show lock overlay always — settings requires permanent key
+        overlay.style.display = 'flex';
+
+        if (tempActive && tempWarn) {
+            // Show temp pass warning + expiry countdown
+            tempWarn.style.display = 'block';
+            function updateTempExpiry() {
+                const remaining = tempData.expires - Date.now();
+                if (remaining <= 0) {
+                    if (expEl) expEl.textContent = '⏰ Temp password ab expire ho gaya.';
+                    return;
+                }
+                const m = Math.floor(remaining / 60000);
+                const s = Math.floor((remaining % 60000) / 1000);
+                if (expEl) expEl.textContent = `⏱ Temp password expires in: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            }
+            updateTempExpiry();
+            setInterval(updateTempExpiry, 1000);
+        }
+    })();
+
     buildAIDropdown();
 });
 
@@ -1364,9 +1398,225 @@ function showTxToast(msg, type = 'success') {
     setTimeout(() => toast.remove(), isSuccess ? 5000 : 4000);
 }
 
-// Set today's date on load
+
+
+// ═══════════════════════════════════════════════════════
+// DASHBOARD PASSWORD MANAGER
+// Permanent key: 'Akanksha' (hardcoded in index.js)
+// Temp passwords stored in localStorage: isi_temp_pass
+// ═══════════════════════════════════════════════════════
+
+const DEFAULT_PERM_KEY    = 'Akanksha';
+let _selectedTempDuration = null;
+let _tempTimerInterval    = null;
+
+// ── PERMANENT KEYS — stored in localStorage as array ──
+// Always includes DEFAULT_PERM_KEY; user can add more
+function getPermKeys() {
+    const stored = JSON.parse(localStorage.getItem('isi_perm_keys') || '[]');
+    // Ensure default key always present
+    if (!stored.includes(DEFAULT_PERM_KEY)) stored.unshift(DEFAULT_PERM_KEY);
+    return stored;
+}
+function savePermKeys(arr) {
+    // Never remove default key from storage logic (index.js handles it too)
+    localStorage.setItem('isi_perm_keys', JSON.stringify(arr));
+    // Sync to index.js world via storage event (same-tab update)
+}
+
+// Verify permanent key for Settings access
+window.verifySettingsPass = function () {
+    const input  = document.getElementById('settingsPassInput');
+    const errEl  = document.getElementById('settingsPassError');
+    const val    = input?.value?.trim() || '';
+
+    if (!val) return;
+
+    // ONLY permanent keys allowed — temp password strictly rejected
+    const tempData = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
+    if (tempData && tempData.pass === val && Date.now() < tempData.expires) {
+        // Temp password entered — show strict error
+        if (errEl) {
+            errEl.style.display = 'block';
+            errEl.innerHTML = '🚫 <b>Temporary password</b> se Settings access nahi hoga. Permanent key use karo.';
+        }
+        if (input) { input.value = ''; input.focus(); }
+        return;
+    }
+
+    if (getPermKeys().includes(val)) {
+        // Correct permanent key — unlock
+        const overlay = document.getElementById('settingsLockOverlay');
+        if (overlay) overlay.style.display = 'none';
+        if (errEl) errEl.style.display = 'none';
+    } else {
+        if (errEl) errEl.style.display = 'block';
+        if (input) { input.value = ''; input.focus(); }
+    }
+};
+
+function renderPermKeysList() {
+    const list = document.getElementById('permKeysList');
+    if (!list) return;
+    const keys = getPermKeys();
+    list.innerHTML = '';
+    keys.forEach((key, idx) => {
+        const isDefault = (key === DEFAULT_PERM_KEY);
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:8px;background:#0a0a14;border:1px solid #1a1a2a;border-radius:5px;padding:9px 12px;';
+        row.innerHTML = `
+            <div style="flex:1;">
+                <div style="font-size:0.6rem;color:#4a9eff;letter-spacing:1px;margin-bottom:2px;">${isDefault ? '🔑 DEFAULT KEY' : `🔑 KEY ${idx + 1}`}</div>
+                <div class="perm-key-val" data-idx="${idx}" style="font-size:0.8rem;color:#333;font-family:monospace;letter-spacing:3px;cursor:pointer;" onclick="togglePermKeyView(this)" title="Click to reveal">••••••••</div>
+            </div>
+            ${isDefault
+                ? `<div style="font-size:0.58rem;color:#333;letter-spacing:1px;">BUILT-IN</div>`
+                : `<button onclick="deletePermKey(${idx})" style="background:#1a0000;border:1px solid #cc3333;color:#cc3333;padding:5px 10px;border-radius:4px;font-size:0.62rem;font-weight:bold;cursor:pointer;">✕</button>`
+            }
+        `;
+        row.querySelector('.perm-key-val').dataset.key = key;
+        list.appendChild(row);
+    });
+}
+
+window.togglePermKeyView = function(el) {
+    const isHidden = el.textContent === '••••••••';
+    el.textContent = isHidden ? el.dataset.key : '••••••••';
+    el.style.color  = isHidden ? '#c5a059' : '#333';
+};
+
+window.addPermKeyRow = function() {
+    const val = prompt('Naya permanent key enter karo:');
+    if (!val || !val.trim()) return;
+    const key = val.trim();
+    const keys = getPermKeys();
+    if (keys.includes(key)) { alert('Yeh key already exist karti hai.'); return; }
+    keys.push(key);
+    savePermKeys(keys);
+    renderPermKeysList();
+    showTxToast(`✅ Permanent key add ho gayi.`, true);
+};
+
+window.deletePermKey = function(idx) {
+    const keys = getPermKeys();
+    if (idx === 0) { alert('Default key delete nahi kar sakte.'); return; }
+    if (!confirm(`Key "${keys[idx]}" delete karein?`)) return;
+    keys.splice(idx, 1);
+    savePermKeys(keys);
+    renderPermKeysList();
+    showTxToast('🗑 Key removed.', false);
+};
+
+// Select temp duration
+window.setTempDuration = function (mins) {
+    _selectedTempDuration = mins;
+    // Update button styles
+    [2, 5, 10, 15].forEach(m => {
+        const btn = document.getElementById(`tmpBtn${m}`);
+        if (!btn) return;
+        if (m === mins) {
+            btn.style.background = '#1a1200';
+            btn.style.borderColor = 'var(--gold)';
+            btn.style.color = 'var(--gold)';
+        } else {
+            btn.style.background = '#0a0a0a';
+            btn.style.borderColor = '#333';
+            btn.style.color = '#666';
+        }
+    });
+    const durEl = document.getElementById('tmpSelectedDur');
+    if (durEl) durEl.textContent = `⏱ ${mins} minute ke liye valid rahega`;
+    durEl.style.color = '#c5a059';
+};
+
+// Generate temp password
+window.generateTempPass = function () {
+    if (!_selectedTempDuration) {
+        alert('Pehle duration select karo (2/5/10/15 min).');
+        return;
+    }
+
+    // Generate 6-char alphanumeric password
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let pass = '';
+    for (let i = 0; i < 6; i++) {
+        pass += chars[Math.floor(Math.random() * chars.length)];
+    }
+
+    const expires = Date.now() + (_selectedTempDuration * 60 * 1000);
+    localStorage.setItem('isi_temp_pass', JSON.stringify({ pass, expires, duration: _selectedTempDuration }));
+
+    // Show active box
+    refreshTempPassUI();
+    showTxToast(`✅ Temp password generated!
+Password: ${pass}
+Valid for ${_selectedTempDuration} minutes.`, true);
+};
+
+// Revoke active temp password
+window.revokeTempPass = function () {
+    localStorage.removeItem('isi_temp_pass');
+    clearInterval(_tempTimerInterval);
+    refreshTempPassUI();
+    showTxToast('🚫 Temp password revoked.', false);
+};
+
+// Refresh the active temp pass UI + start countdown
+function refreshTempPassUI() {
+    clearInterval(_tempTimerInterval);
+
+    const box    = document.getElementById('activeTempPassBox');
+    const noBox  = document.getElementById('noActiveTempBox');
+    const valEl  = document.getElementById('activeTempPassVal');
+    const timEl  = document.getElementById('activeTempPassTimer');
+    const expEl  = document.getElementById('activeTempPassExp');
+
+    const data = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
+
+    if (!data || !data.pass || Date.now() >= data.expires) {
+        // Expired or none
+        localStorage.removeItem('isi_temp_pass');
+        if (box)   box.style.display   = 'none';
+        if (noBox) noBox.style.display = 'block';
+        return;
+    }
+
+    if (box)   box.style.display   = 'block';
+    if (noBox) noBox.style.display = 'none';
+    if (valEl) valEl.textContent   = data.pass;
+
+    const expDate = new Date(data.expires);
+    if (expEl) expEl.textContent = `Expires at ${expDate.toLocaleTimeString('en-GB', { hour12: false })}`;
+
+    // Countdown timer
+    function tick() {
+        const remaining = data.expires - Date.now();
+        if (remaining <= 0) {
+            clearInterval(_tempTimerInterval);
+            localStorage.removeItem('isi_temp_pass');
+            refreshTempPassUI();
+            showTxToast('⏰ Temp password expired.', false);
+            return;
+        }
+        const m = Math.floor(remaining / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        if (timEl) {
+            timEl.textContent = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            timEl.style.color = remaining < 60000 ? '#ff3b3b' : '#00c805';
+        }
+        // Pulse red when < 1 min
+        if (valEl) valEl.style.color = remaining < 60000 ? '#ff3b3b' : '#fff';
+    }
+    tick();
+    _tempTimerInterval = setInterval(tick, 1000);
+}
+
+// Init on page load
 document.addEventListener('DOMContentLoaded', () => {
     const txDateEl = document.getElementById('txDate');
     if (txDateEl) txDateEl.value = new Date().toISOString().slice(0,10);
     setTxType('DEPOSIT');
+    refreshTempPassUI();      // check for existing temp pass
+    renderPermKeysList();     // render permanent keys list
 });
+

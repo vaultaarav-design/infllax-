@@ -1627,11 +1627,48 @@ const oaths = [
     "Final Command: Aaj ka goal perfect execution hai. Profit khud follow karega. 🎖️"
 ];
 
-window.closeOath = function () {
-    document.getElementById('oathPopup').style.display = 'none';
-    // Remember today's date — oath won't show again today
-    localStorage.setItem('isi_oath_date', new Date().toISOString().split('T')[0]);
+// ── TERMINAL PASSWORD SYSTEM ──
+// Default permanent master key
+const MASTER_KEY = 'Akanksha';
+
+function getAllPermKeys() {
+    const stored = JSON.parse(localStorage.getItem('isi_perm_keys') || '[]');
+    if (!stored.includes(MASTER_KEY)) stored.unshift(MASTER_KEY);
+    return stored;
+}
+
+// Verify oath password (any permanent key OR active temp password)
+window.verifyOathPassword = function () {
+    const input  = document.getElementById('oathPassInput');
+    const errEl  = document.getElementById('oathPassError');
+    const val    = input?.value?.trim() || '';
+
+    // Check all permanent keys
+    if (getAllPermKeys().includes(val)) {
+        _unlockTerminal();
+        return;
+    }
+
+    // Check temp password
+    const tempData = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
+    if (tempData && tempData.pass && tempData.expires) {
+        if (val === tempData.pass && Date.now() < tempData.expires) {
+            _unlockTerminal();
+            return;
+        }
+    }
+
+    // Wrong password
+    if (errEl) errEl.style.display = 'block';
+    if (input) { input.value = ''; input.focus(); }
 };
+
+function _unlockTerminal() {
+    document.getElementById('oathPopup').style.display = 'none';
+    localStorage.setItem('isi_oath_date', new Date().toISOString().split('T')[0]);
+    const errEl = document.getElementById('oathPassError');
+    if (errEl) errEl.style.display = 'none';
+}
 
 // ──────────────────────────────────────────────
 // DOM READY
@@ -1643,14 +1680,12 @@ window.addEventListener('DOMContentLoaded', () => {
     const popup     = document.getElementById('oathPopup');
     const d         = document.getElementById('oathDisplay');
 
-    if (oathDone === today) {
-        // Already sworn today — hide immediately
-        if (popup) popup.style.display = 'none';
-    } else {
-        // Show oath
-        if (d) d.innerText = oaths[Math.floor(Math.random() * oaths.length)];
-        if (popup) popup.style.display = 'flex';
-    }
+    // Password gate: Always show on load — hide only after correct password
+    if (d) d.innerText = oaths[Math.floor(Math.random() * oaths.length)];
+    if (popup) popup.style.display = 'flex';
+    // Auto-clear wrong password error + focus input
+    const pi = document.getElementById('oathPassInput');
+    if (pi) { pi.value = ''; setTimeout(() => pi.focus(), 300); }
 
     // Checklist
     initFlowUI();

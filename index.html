@@ -316,7 +316,16 @@
     <div class="oath-box">
         <div class="oath-tag">Institutional Operator Oath</div>
         <div id="oathDisplay"></div>
-        <button class="oath-btn" onclick="closeOath()">I Swear by My Discipline</button>
+        <!-- PASSWORD GATE -->
+        <div id="oathPassSection" style="margin-bottom:20px;">
+            <div style="font-size:0.6rem;color:#555;letter-spacing:2px;margin-bottom:8px;">ENTER TERMINAL PASSWORD</div>
+            <input type="password" id="oathPassInput" placeholder="Password..."
+                style="background:#0a0a0a;border:1px solid #333;color:#fff;padding:11px 14px;border-radius:4px;font-size:0.85rem;width:100%;text-align:center;letter-spacing:2px;"
+                onkeydown="if(event.key==='Enter') verifyOathPassword()">
+            <div id="oathPassError" style="color:#ff3b3b;font-size:0.65rem;margin-top:6px;display:none;">❌ Galat password. Dobara try karo.</div>
+            <div id="oathPassHint" style="color:#555;font-size:0.58rem;margin-top:4px;">Permanent key ya active temp password enter karo</div>
+        </div>
+        <button class="oath-btn" onclick="verifyOathPassword()">🔐 ENTER TERMINAL</button>
     </div>
 </div>
 

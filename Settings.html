@@ -58,6 +58,34 @@
     </style>
 </head>
 <body>
+
+    <!-- ═══ SETTINGS LOCK GATE ═══ -->
+    <div id="settingsLockOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:99999;align-items:center;justify-content:center;backdrop-filter:blur(14px);">
+        <div style="background:#050505;border:1px solid #c5a059;border-top:4px solid #c5a059;border-radius:8px;padding:40px 32px;max-width:420px;width:90%;text-align:center;">
+            <div style="font-size:2rem;margin-bottom:10px;">🔒</div>
+            <div style="font-size:0.6rem;color:#c5a059;letter-spacing:4px;font-weight:bold;margin-bottom:6px;">SETTINGS ACCESS RESTRICTED</div>
+            <div style="font-size:0.75rem;color:#666;margin-bottom:22px;line-height:1.6;">Settings ke liye <b style="color:#fff;">permanent key</b> required hai.<br>Temporary password yahan kaam nahi karta.</div>
+
+            <!-- TEMP PASS WARNING (shown only if temp pass was used) -->
+            <div id="settingsTempWarn" style="display:none;background:#1a0800;border:1px solid #ff6600;border-radius:6px;padding:12px 14px;margin-bottom:18px;text-align:left;">
+                <div style="font-size:0.62rem;color:#ff6600;font-weight:bold;letter-spacing:1px;margin-bottom:5px;">⚠ TEMPORARY PASSWORD DETECTED</div>
+                <div style="font-size:0.68rem;color:#cc5500;line-height:1.6;">Temporary password se sirf <b>Terminal access</b> hota hai — Settings nahi.</div>
+                <div id="settingsTempExpiry" style="font-size:0.65rem;color:#ff8800;margin-top:6px;font-family:monospace;"></div>
+            </div>
+
+            <input type="password" id="settingsPassInput" placeholder="Permanent key enter karo..."
+                style="width:100%;background:#0a0a0a;border:1px solid #333;color:#fff;padding:12px 14px;border-radius:5px;font-size:0.85rem;letter-spacing:2px;margin-bottom:10px;text-align:center;"
+                onkeydown="if(event.key==='Enter') verifySettingsPass()">
+            <div id="settingsPassError" style="color:#ff3b3b;font-size:0.65rem;margin-bottom:12px;display:none;">❌ Galat key. Sirf permanent key kaam karegi.</div>
+
+            <button onclick="verifySettingsPass()"
+                style="width:100%;background:#0a0800;border:2px solid var(--gold);color:var(--gold);padding:12px;border-radius:5px;font-size:0.78rem;font-weight:bold;cursor:pointer;letter-spacing:2px;margin-bottom:14px;">
+                🔑 UNLOCK SETTINGS
+            </button>
+            <a href="index.html" style="font-size:0.62rem;color:#444;text-decoration:none;letter-spacing:1px;">← Terminal pe wapas jao</a>
+        </div>
+    </div>
+
     <div class="top-global-bar">
         <div>
             <div style="color: var(--gold); font-weight: bold; font-size: 1.4rem; letter-spacing: 2px;">ISI FUND ARCHITECTURE v6.0</div>
@@ -301,6 +329,56 @@
             </div>
 
             <!-- ═══════════════════════════════════════════
+                 DASHBOARD PASSWORD MANAGER
+            ═══════════════════════════════════════════ -->
+            <div style="background:#0a0a0a;border:1px solid #1a1a1a;border-top:3px solid #4a9eff;border-radius:6px;padding:18px;margin-bottom:18px;">
+                <div style="font-size:0.6rem;color:#4a9eff;letter-spacing:3px;font-weight:bold;margin-bottom:14px;">🔐 DASHBOARD PASSWORD MANAGER</div>
+
+                <!-- PERMANENT KEYS MANAGER -->
+                <div style="background:#050510;border:1px solid #1a1a2a;border-radius:6px;padding:12px 14px;margin-bottom:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+                        <div>
+                            <div style="font-size:0.58rem;color:#4a9eff;letter-spacing:2px;margin-bottom:3px;">PERMANENT MASTER KEYS</div>
+                            <div style="font-size:0.65rem;color:#555;font-style:italic;">Always valid — never expire</div>
+                        </div>
+                        <button onclick="addPermKeyRow()" style="background:#0a0010;border:1px dashed #4a9eff;color:#4a9eff;padding:5px 12px;border-radius:4px;font-size:0.62rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">＋ ADD KEY</button>
+                    </div>
+                    <div id="permKeysList" style="display:flex;flex-direction:column;gap:6px;"></div>
+                </div>
+
+                <!-- TEMP PASSWORD GENERATOR -->
+                <div style="background:#050505;border:1px solid #1a1a1a;border-radius:6px;padding:14px;margin-bottom:14px;">
+                    <div style="font-size:0.58rem;color:#c5a059;letter-spacing:2px;margin-bottom:10px;font-weight:bold;">⏱ TEMPORARY PASSWORD GENERATOR</div>
+                    <div style="font-size:0.65rem;color:#555;margin-bottom:10px;">Select duration → Generate → Share karo. Sirf uss waqt tak valid rahega.</div>
+
+                    <!-- Duration buttons -->
+                    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
+                        <button onclick="setTempDuration(2)"  id="tmpBtn2"  style="padding:8px 14px;background:#0a0a0a;border:1px solid #333;color:#666;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">2 MIN</button>
+                        <button onclick="setTempDuration(5)"  id="tmpBtn5"  style="padding:8px 14px;background:#0a0a0a;border:1px solid #333;color:#666;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">5 MIN</button>
+                        <button onclick="setTempDuration(10)" id="tmpBtn10" style="padding:8px 14px;background:#0a0a0a;border:1px solid #333;color:#666;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">10 MIN</button>
+                        <button onclick="setTempDuration(15)" id="tmpBtn15" style="padding:8px 14px;background:#0a0a0a;border:1px solid #333;color:#666;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">15 MIN</button>
+                    </div>
+                    <div id="tmpSelectedDur" style="font-size:0.62rem;color:#555;margin-bottom:10px;">Duration select karo upar se</div>
+
+                    <button onclick="generateTempPass()" style="width:100%;background:#0a0800;border:1px solid var(--gold);color:var(--gold);padding:10px;border-radius:4px;font-size:0.72rem;font-weight:bold;cursor:pointer;letter-spacing:2px;">⚡ GENERATE TEMP PASSWORD</button>
+                </div>
+
+                <!-- ACTIVE TEMP PASSWORD STATUS -->
+                <div id="activeTempPassBox" style="display:none;background:#020d08;border:1px solid #00c805;border-radius:6px;padding:14px;margin-bottom:14px;">
+                    <div style="font-size:0.55rem;color:#00c805;letter-spacing:3px;margin-bottom:6px;font-weight:bold;">✅ ACTIVE TEMP PASSWORD</div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                        <div id="activeTempPassVal" style="font-size:1.4rem;font-weight:900;color:#fff;font-family:monospace;letter-spacing:4px;">----</div>
+                        <div id="activeTempPassTimer" style="font-size:0.75rem;color:#00c805;font-family:monospace;font-weight:bold;">--:--</div>
+                    </div>
+                    <div id="activeTempPassExp" style="font-size:0.6rem;color:#555;margin-bottom:10px;"></div>
+                    <button onclick="revokeTempPass()" style="background:#1a0000;border:1px solid #ff3b3b;color:#ff3b3b;padding:7px 14px;border-radius:4px;font-size:0.65rem;font-weight:bold;cursor:pointer;letter-spacing:1px;">🚫 REVOKE</button>
+                </div>
+
+                <!-- NO ACTIVE PASS -->
+                <div id="noActiveTempBox" style="font-size:0.65rem;color:#333;text-align:center;padding:8px;font-style:italic;">Koi active temp password nahi hai</div>
+            </div>
+
+            <!-- ═══════════════════════════════════════════
                  ADD ENTRY MODAL (inline, for settings page)
             ═══════════════════════════════════════════ -->
             <!-- ═══ KB ADD/EDIT ENTRY MODAL ═══ -->
@@ -375,6 +453,15 @@
                                     <button onclick="clearKBFile()" style="background:var(--danger);color:#fff;border:none;padding:3px 8px;border-radius:3px;cursor:pointer;font-size:0.62rem;">✕</button>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- UPLOAD PROGRESS BAR -->
+                        <div id="kbUploadBar" style="display:none;margin-top:10px;">
+                            <div id="kbUploadBarPct" style="font-size:0.65rem;color:var(--gold);margin-bottom:4px;">⏳ Uploading...</div>
+                            <div style="height:6px;background:#1a1a1a;border-radius:3px;overflow:hidden;">
+                                <div id="kbUploadBarFill" style="height:100%;background:var(--gold);width:0%;transition:width 0.3s;border-radius:3px;"></div>
+                            </div>
+                            <div id="kbUploadBytes" style="font-size:0.58rem;color:#555;margin-top:3px;"></div>
                         </div>
 
                         <!-- TEXT TAB -->
