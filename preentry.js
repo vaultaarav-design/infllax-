@@ -41,12 +41,47 @@ const peData = {
     savedAt:      null
 };
 
+// ── TIME HELPERS (same as index.js) ──
+function timeToMinutes(t) {
+    if (!t) return null;
+    const [h, m] = t.split(':').map(Number);
+    return h * 60 + m;
+}
+function formatCountdown(diffSeconds) {
+    if (diffSeconds <= 0) return '00:00:00';
+    const h = Math.floor(diffSeconds / 3600);
+    const m = Math.floor((diffSeconds % 3600) / 60);
+    const s = diffSeconds % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+function getNodeSlotsForDay(node, dayName) {
+    if (node.timeSlots && node.timeSlots[dayName] && Array.isArray(node.timeSlots[dayName])) {
+        return node.timeSlots[dayName]
+            .filter(sl => sl && sl.start)
+            .map((sl, i) => ({ ...sl, slotIdx: i }));
+    }
+    if (node.times && node.times[dayName] && node.times[dayName].start) {
+        const t = node.times[dayName];
+        return [{ start:t.start, end:t.end||'', expire:t.expire||'',
+            risk:node.risk??null, qtyFrom:node.qtyFrom||1, qtyTo:node.qtyTo||10, slotIdx:0 }];
+    }
+    return [];
+}
+
+// ── LIVE STATS CACHE ──
+let liveStats = {};
+onValue(ref(db, 'isi_v6/stats'), snap => {
+    liveStats = snap.val() || {};
+    buildPeTimerSlider(); // refresh balances/risk on slider
+});
+
 // ── FIREBASE CLUSTERS ──
 onValue(ref(db, 'isi_v6/clusters'), (snap) => {
     clusters = snap.val() || {};
     document.getElementById('peFbStatus').textContent = '● LIVE';
     document.getElementById('peFbStatus').className   = 'fb-dot live';
     populateClusters();
+    buildPeTimerSlider();
     loadTodayHistory();
 });
 
@@ -82,6 +117,196 @@ function populateAccounts(clusterId) {
         o.textContent = `${n.title || 'Account ' + (i+1)} [#${n.order||i+1}]`;
         sel.appendChild(o);
     });
+}
+
+// ── PE TIMER SLIDER — build and auto-refresh ──
+let peSliderInterval = null;
+
+function buildPeTimerSlider() {
+    const grid = document.getElementById('peTimerSlider');
+    if (!grid) return;
+    const dayName = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date().getDay()];
+    const entries = Object.entries(clusters);
+    grid.innerHTML = '';
+
+    let todayCards = [];
+    entries.forEach(([cId, cluster]) => {
+        (cluster.nodes || []).forEach((node, nIdx) => {
+            const slots = getNodeSlotsForDay(node, dayName);
+            slots.forEach(slot => todayCards.push({ cId, cluster, node, nIdx, slot }));
+        });
+    });
+
+    if (!todayCards.length) {
+        grid.innerHTML = '<div style="padding:10px 18px;font-size:0.65rem;color:#444;letter-spacing:2px;">NO SCHEDULED SESSIONS TODAY</div>';
+        grid.classList.add('no-anim');
+        return;
+    }
+
+    const now    = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+
+    todayCards.forEach(({ cId, cluster, node, nIdx, slot }) => {
+        const stats   = liveStats[cId]?.[String(nIdx)] || {};
+        const liveBal = stats.currentBal ?? node.balance ?? 0;
+        const riskPct = slot.risk ?? node.risk ?? 0;
+        const riskAmt = (liveBal * riskPct / 100);
+        const curr    = node.curr || '₹';
+        const sIdx    = slot.slotIdx;
+
+        const startMin  = timeToMinutes(slot.start);
+        const endMin    = timeToMinutes(slot.end);
+        const expireMin = timeToMinutes(slot.expire);
+
+        let phase = 'pre', st = 'SCHEDULED', borderCol = '#c5a059', glowCol = 'rgba(197,160,89,0.25)';
+        let countdown = '--:--:--', lbl = 'LIVE IN';
+        if (startMin !== null && nowMin < startMin) {
+            const d = (startMin - nowMin)*60 - now.getSeconds();
+            countdown = formatCountdown(d); phase='pre'; st='SCHEDULED';
+            borderCol='#c5a059'; glowCol='rgba(197,160,89,0.25)';
+        } else if (startMin !== null && endMin !== null && nowMin>=startMin && nowMin<endMin) {
+            const d = (endMin - nowMin)*60 - now.getSeconds();
+            countdown = formatCountdown(d); phase='live'; st='● LIVE';
+            borderCol='#00c805'; glowCol='rgba(0,200,5,0.3)'; lbl='ENDS IN';
+        } else if (endMin !== null && expireMin !== null && nowMin>=endMin && nowMin<expireMin) {
+            const d = (expireMin - nowMin)*60 - now.getSeconds();
+            countdown = formatCountdown(d); phase='exit'; st='EXIT ZONE';
+            borderCol='#ffcc00'; glowCol='rgba(255,204,0,0.25)'; lbl='EXPIRES IN';
+        } else if (expireMin !== null && nowMin>=expireMin) {
+            phase='closed'; st='CLOSED'; countdown='DONE'; lbl='SESSION';
+            borderCol='#ff3b3b'; glowCol='rgba(255,59,59,0.15)';
+        }
+
+        const isActive = selectedClusterId===cId && selectedNodeIdx===nIdx && slot.slotIdx===(peData._selectedSlot||0);
+        const activeCss = isActive ? `border-color:#4a9eff!important;box-shadow:0 0 18px rgba(74,158,255,0.4)!important;` : '';
+        const activeLabel = isActive ? '<div style="position:absolute;bottom:5px;right:8px;font-size:0.48rem;color:#4a9eff;font-weight:bold;letter-spacing:1px;">◀ LOCKED</div>' : '';
+        const slotLabel = sIdx > 0 ? ` <span style="font-size:0.5rem;color:#555;">(S${sIdx+1})</span>` : '';
+
+        const div = document.createElement('div');
+        div.className = 'pe-slide-card';
+        div.dataset.cluster = cId;
+        div.dataset.node    = String(nIdx);
+        div.dataset.slot    = String(sIdx);
+        div.style.cssText   = `border-color:${borderCol};box-shadow:0 0 10px ${glowCol};${activeCss}cursor:pointer;`;
+        // onclick via attribute so it survives innerHTML clone
+        div.setAttribute('onclick', `selectPeCard('${cId}',${nIdx},${sIdx})`);
+        div.innerHTML = `
+            <div style="font-size:0.52rem;color:#666;letter-spacing:2px;font-weight:bold;">${cluster.title}</div>
+            <div style="font-size:0.72rem;font-weight:900;color:#fff;margin:2px 0;">${node.title||'Account '+(nIdx+1)}${slotLabel}</div>
+            <div style="font-size:0.55rem;color:#555;font-family:monospace;">${slot.start||'--'} → ${slot.expire||'--'}</div>
+            <div style="margin:6px 0;font-size:0.65rem;font-weight:bold;color:${borderCol};">${st}</div>
+            <div style="font-size:1.3rem;font-weight:900;color:${borderCol};font-family:monospace;">${countdown}</div>
+            <div style="font-size:0.48rem;color:#555;letter-spacing:2px;margin-top:1px;">${lbl}</div>
+            <div style="margin-top:6px;padding-top:6px;border-top:1px solid #1a1a1a;display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-size:0.6rem;color:var(--gold);font-weight:bold;">${curr}${riskAmt.toLocaleString('en-US',{maximumFractionDigits:0})}</div>
+                <div style="font-size:0.52rem;color:#555;">${riskPct}% RISK</div>
+            </div>
+            ${activeLabel}`;
+        grid.appendChild(div);
+    });
+
+    // Duplicate for seamless scroll if many cards
+    if (todayCards.length > 2) {
+        const clone = grid.innerHTML;
+        grid.innerHTML += clone;
+        grid.classList.remove('no-anim');
+    } else {
+        grid.classList.add('no-anim');
+    }
+}
+
+// Update slider countdown every second without full rebuild
+function updatePeSliderCountdowns() {
+    const grid = document.getElementById('peTimerSlider');
+    if (!grid) return;
+    const dayName = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date().getDay()];
+    const now     = new Date();
+    const nowMin  = now.getHours() * 60 + now.getMinutes();
+    grid.querySelectorAll('.pe-slide-card').forEach(card => {
+        const cId  = card.dataset.cluster;
+        const nIdx = parseInt(card.dataset.node);
+        const sIdx = parseInt(card.dataset.slot || '0');
+        const node = clusters[cId]?.nodes[nIdx];
+        if (!node) return;
+        const slots = getNodeSlotsForDay(node, dayName);
+        const slot  = slots[sIdx] || slots[0];
+        if (!slot) return;
+        const startMin  = timeToMinutes(slot.start);
+        const endMin    = timeToMinutes(slot.end);
+        const expireMin = timeToMinutes(slot.expire);
+        let cd = '--:--:--', st = 'SCHEDULED', lbl = 'LIVE IN', col = '#c5a059';
+        if (startMin !== null && nowMin < startMin) {
+            cd = formatCountdown((startMin-nowMin)*60-now.getSeconds()); st='SCHEDULED'; col='#c5a059'; lbl='LIVE IN';
+        } else if (startMin!==null && endMin!==null && nowMin>=startMin && nowMin<endMin) {
+            cd = formatCountdown((endMin-nowMin)*60-now.getSeconds()); st='● LIVE'; col='#00c805'; lbl='ENDS IN';
+        } else if (endMin!==null && expireMin!==null && nowMin>=endMin && nowMin<expireMin) {
+            cd = formatCountdown((expireMin-nowMin)*60-now.getSeconds()); st='EXIT ZONE'; col='#ffcc00'; lbl='EXPIRES IN';
+        } else { cd='DONE'; st='CLOSED'; col='#ff3b3b'; lbl='SESSION'; }
+        const cdEl = card.querySelectorAll('div')[5];
+        const stEl = card.querySelectorAll('div')[4];
+        const lbEl = card.querySelectorAll('div')[6];
+        if (cdEl) cdEl.textContent = cd;
+        if (stEl) { stEl.textContent = st; stEl.style.color = col; }
+        if (lbEl) lbEl.textContent = lbl;
+    });
+}
+setInterval(updatePeSliderCountdowns, 1000);
+
+// ── Global onclick wrapper (survives innerHTML clone) ──
+window.selectPeCard = function(cId, nIdx, sIdx) {
+    selectPeSliderCard({ dataset:{ cluster:cId, node:String(nIdx), slot:String(sIdx) } });
+};
+
+// ── CLICK on PE slider card → auto-fill cluster + account + risk ──
+function selectPeSliderCard(card) {
+    const cId  = card.dataset.cluster;
+    const nIdx = parseInt(card.dataset.node);
+    const sIdx = parseInt(card.dataset.slot || '0');
+    if (!cId || !clusters[cId]) return;
+
+    selectedClusterId = cId;
+    selectedNodeIdx   = nIdx;
+    peData._selectedSlot = sIdx;
+
+    // Update header dropdowns
+    const clSel  = document.getElementById('peClusterSel');
+    const accSel = document.getElementById('peAccountSel');
+    if (clSel)  { clSel.value = cId; }
+    populateAccounts(cId);
+    if (accSel) { accSel.value = String(nIdx); accSel.disabled = false; }
+
+    localStorage.setItem('isi_sel_cluster', cId);
+    localStorage.setItem('isi_sel_node',    String(nIdx));
+
+    // Fill risk amount in pre-trade plan section
+    const node    = clusters[cId]?.nodes[nIdx];
+    const dayName = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date().getDay()];
+    const slots   = getNodeSlotsForDay(node, dayName);
+    const slot    = slots[sIdx] || slots[0] || {};
+    const stats   = liveStats[cId]?.[String(nIdx)] || {};
+    const liveBal = stats.currentBal ?? node?.balance ?? 0;
+    const riskPct = slot.risk ?? node?.risk ?? 0;
+    const riskAmt = (liveBal * riskPct / 100);
+    const curr    = node?.curr || '₹';
+
+    // Store in peData for calcQty use
+    peData._riskAmt = riskAmt;
+    peData._riskPct = riskPct;
+    peData._curr    = curr;
+
+    // Show risk amount in section 4
+    const riskDisplay = document.getElementById('peRiskAmtDisplay');
+    if (riskDisplay) {
+        riskDisplay.textContent = `${curr}${riskAmt.toLocaleString('en-US',{maximumFractionDigits:2})}`;
+        riskDisplay.style.display = 'block';
+    }
+
+    // Rebuild slider to show LOCKED state
+    buildPeTimerSlider();
+    loadTodayHistory();
+
+    // Trigger qty recalc if entry+sl already filled
+    calcQty();
 }
 
 window.onPeClusterChange = function () {
@@ -237,6 +462,97 @@ window.calcRR = function () {
     document.getElementById('peRR').style.color = color;
     document.getElementById('peRR').textContent = `1 : ${rr}`;
     recalcScore();
+    calcQty(); // auto-calc qty after RR update
+};
+
+// ── INDUSTRY-GRADE QTY CALCULATION ──
+// Formula: Qty = Risk Amount / (|Entry - Stop Loss| × Point Value)
+// Point Value per asset: XAUUSD=1 (per oz, price direct), Forex=varies by pip
+// For simplicity (retail/prop): Qty = RiskAmt / (|Entry - SL|)
+// This gives units. For forex lots: Qty(lots) = RiskAmt / (pips × pip_value)
+// We compute "units" here — trader adjusts lot size in MT5 accordingly
+window.calcQty = function () {
+    const entry   = parseFloat(document.getElementById('peEntryZone').value);
+    const sl      = parseFloat(document.getElementById('peStopZone').value);
+    const riskAmt = peData._riskAmt || 0;
+    const el      = document.getElementById('peCalcQtyDisplay');
+    const box     = document.getElementById('peCalcQtyBox');
+
+    if (!entry || !sl || !riskAmt) {
+        if (el)  el.textContent = '—';
+        if (box) box.style.display = 'none';
+        peData.calcQty = null;
+        return;
+    }
+
+    const priceDiff = Math.abs(entry - sl);
+    if (priceDiff === 0) {
+        if (el) el.textContent = 'SL = Entry!';
+        return;
+    }
+
+    // Industry standard: Raw Qty = Risk / Price Diff
+    // For futures/commodities/crypto: this is direct units
+    // For forex: divide by pip value (assume 1 pip = 0.0001, lot=100000 units)
+    // Auto-detect forex vs commodity by price range
+    let qty;
+    const assetEl = document.getElementById('peAsset');
+    const assetCi = document.getElementById('peAssetCustom');
+    const asset   = (assetEl?.value === 'CUSTOM') ? (assetCi?.value?.toUpperCase()||'') : (assetEl?.value||'');
+    const isForex = ['EURUSD','GBPUSD','USDJPY','AUDUSD','USDCAD','GBPJPY','EURGBP'].includes(asset);
+    const isIndex = ['NAS100','US30','SPX500','DAX'].includes(asset);
+    const isCrypto = ['BTCUSD','ETHUSD','XRPUSD'].includes(asset);
+
+    if (isForex) {
+        // Standard forex: pip = 0.0001 (4-decimal pairs), 1 std lot = 100,000 units
+        // Risk per pip per 0.01 lot = ~$1 (USD account)
+        // qty(lots) = RiskAmt / (pips × pip_value_per_lot)
+        // pip_value_per_lot ≈ 10 USD for major pairs
+        const pips = priceDiff / 0.0001;
+        const pipValuePerLot = 10; // USD per pip per standard lot
+        qty = riskAmt / (pips * pipValuePerLot);
+        qty = parseFloat(qty.toFixed(2));
+    } else if (isIndex) {
+        // Indices: 1 point move, contract size varies. Generic: units = risk / move
+        qty = parseFloat((riskAmt / priceDiff).toFixed(2));
+    } else {
+        // Commodities (XAUUSD), Crypto: direct — qty = risk / price_diff
+        qty = parseFloat((riskAmt / priceDiff).toFixed(4));
+        // Round to sensible decimal: if qty > 1, round to 2 decimals
+        if (qty >= 10) qty = Math.round(qty);
+        else if (qty >= 1) qty = parseFloat(qty.toFixed(2));
+        else qty = parseFloat(qty.toFixed(4));
+    }
+
+    peData.calcQty = qty;
+    const curr = peData._curr || '';
+
+    if (el) {
+        el.textContent = `${qty} ${isForex ? 'lots' : 'units'}`;
+        el.style.color = 'var(--accent)';
+    }
+    if (box) box.style.display = 'flex';
+
+    // Also show breakdown
+    const breakdown = document.getElementById('peQtyBreakdown');
+    if (breakdown) {
+        breakdown.textContent = `${curr}${riskAmt.toLocaleString('en-IN',{maximumFractionDigits:0})} ÷ ${priceDiff.toFixed(isForex?5:2)} = ${qty} ${isForex?'lots':'units'}`;
+    }
+};
+// alias for oninput events
+function calcQty() { window.calcQty(); }
+
+// ── CUSTOM ASSET TOGGLE ──
+window.onPeAssetChange = function () {
+    const sel = document.getElementById('peAsset');
+    const ci  = document.getElementById('peAssetCustom');
+    if (!sel || !ci) return;
+    if (sel.value === 'CUSTOM') {
+        ci.style.display = 'block'; ci.focus();
+    } else {
+        ci.style.display = 'none'; ci.value = '';
+    }
+    calcQty();
 };
 
 // ── CONFLICT DETECTION ──
@@ -443,12 +759,12 @@ function recalcScore() {
     if (conflict) {
         btn.className = 'conflict';
         btn.textContent = `⚠ CONFLICT DETECTED — Score: ${score}/100 — Proceed with caution`;
-    } else if (score >= 60 && analysisElapsed >= 300) {
+    } else if (score >= 75 && analysisElapsed >= 300) {
         btn.className = 'ready';
         btn.textContent = `✅ ANALYSIS COMPLETE — Score: ${score}/100 — PROCEED TO TERMINAL`;
     } else if (score >= 40) {
         btn.className = 'locked';
-        btn.textContent = `⏳ SCORE: ${score}/100 — Need 60+ and 5 min analysis to proceed`;
+        btn.textContent = `⏳ SCORE: ${score}/100 — Need 75+ and 5 min analysis to proceed`;
     } else {
         btn.className = 'locked';
         btn.textContent = `⏳ COMPLETE ANALYSIS — Current Score: ${score}/100`;
@@ -489,13 +805,21 @@ window.proceedToTerminal = async function () {
             volatility:  peData.volatility,
             biasResult:  peData.biasResult || '',
             conflict:    peData.conflict   || '',
-            asset:       document.getElementById('peAsset').value,
+            asset:       (document.getElementById('peAsset')?.value==='CUSTOM' ? (document.getElementById('peAssetCustom')?.value?.trim().toUpperCase()||'CUSTOM') : document.getElementById('peAsset')?.value) || '',
             direction:   document.getElementById('peDirection').value,
             entryZone:   document.getElementById('peEntryZone').value,
             stopZone:    document.getElementById('peStopZone').value,
             targetZone:  document.getElementById('peTargetZone').value,
             rrPlanned:   peData.rrPlanned || '',
-            note:        document.getElementById('peNote').value
+            note:        document.getElementById('peNote').value,
+            // Qty + risk calc data for terminal OrderCard
+            entryPrice:  parseFloat(document.getElementById('peEntryZone').value) || null,
+            stopLoss:    parseFloat(document.getElementById('peStopZone').value)  || null,
+            calcQty:     peData.calcQty  || null,
+            riskAmt:     peData._riskAmt ? parseFloat(peData._riskAmt.toFixed(2)) : null,
+            riskPct:     peData._riskPct || null,
+            curr:        peData._curr    || '₹',
+            calcRR:      peData.rrPlanned || null
         };
 
         try {
@@ -543,7 +867,7 @@ function loadTodayHistory() {
             const mins = Math.floor((r.timerSecs||0)/60);
             const secs = (r.timerSecs||0) % 60;
             const hasConflict = !!r.conflict;
-            const cls = hasConflict ? 'conflict' : r.score >= 60 ? 'went-live' : 'skipped';
+            const cls = hasConflict ? 'conflict' : r.score >= 75 ? 'went-live' : 'skipped';
             const time = new Date(r.savedAt).toLocaleTimeString('en-GB',{hour12:false,hour:'2-digit',minute:'2-digit'});
             return `
             <div class="pe-history-item ${cls}">

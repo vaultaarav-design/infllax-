@@ -74,7 +74,31 @@ function getNodeStats(cId, nIdx) {
 // stats.currentBal = live trading balance — only place trading logic writes
 async function writeStats(cId, nIdx, statsObj) {
     // Use String(nIdx) explicitly — Firebase stores as string, keep consistent
-    await update(ref(db, `isi_v6/stats/${cId}/${String(nIdx)}`), statsObj);
+    try {
+        await update(ref(db, `isi_v6/stats/${cId}/${String(nIdx)}`), statsObj);
+        return true;
+    } catch(e) {
+        showToast('⚠ Stats update fail hua — Balance stale ho sakta hai. Firebase connection check karo.', 'error');
+        console.error('writeStats failed:', e);
+        return false;
+    }
+}
+
+// ── TOAST NOTIFICATION ──
+function showToast(msg, type = 'info') {
+    document.getElementById('isiToastEl')?.remove();
+    const bg  = type === 'error' ? '#1a0000' : '#001a00';
+    const bc  = type === 'error' ? '#cc2222' : '#00aa44';
+    const col = type === 'error' ? '#ff5252' : '#00c805';
+    const t   = document.createElement('div');
+    t.id = 'isiToastEl';
+    t.style.cssText = `position:fixed;bottom:22px;right:22px;z-index:99999;background:${bg};
+        border:1.5px solid ${bc};color:${col};padding:12px 18px;border-radius:7px;
+        font-size:0.75rem;font-weight:bold;max-width:320px;line-height:1.6;
+        box-shadow:0 4px 20px rgba(0,0,0,0.7);white-space:pre-line;`;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 5000);
 }
 
 // ──────────────────────────────────────────────
@@ -268,7 +292,7 @@ function renderTimerSlider() {
         const riskAmt = (liveBal * slotRisk / 100).toFixed(0);
         const slotLabel = slotIdx > 0 ? ` (S${slotIdx+1})` : '';
         grid.innerHTML += `
-            <div class="s-timer-card stc-landscape" data-cluster="${cId}" data-node="${nIdx}" data-slot="${slotIdx}">
+            <div class="s-timer-card stc-landscape" data-cluster="${cId}" data-node="${nIdx}" data-slot="${slotIdx}" onclick="selectFromSliderCard(this)" style="cursor:pointer;">
                 <div class="stc-left">
                     <div class="stc-cluster">${cluster.title}</div>
                     <div class="stc-name">${node.title || 'Account ' + (nIdx + 1)}${slotLabel}</div>
@@ -402,14 +426,14 @@ window.onAccountChange = function () {
     onAccountSelected();
 };
 
-function onAccountSelected() {
+function onAccountSelected(preserveSlot) {
     updateModeBadge(); updateSelectedInfoBar(); highlightSelectedCard();
     document.getElementById('noClusterWarn').className = '';
     const n = getActiveNode();
     const titleEl = document.getElementById('equityChartTitle');
     if (titleEl && n) titleEl.textContent = `1. Equity Pulse — ${n.title || 'Account ' + (selectedNodeIdx + 1)}`;
     loadNodeData();
-    populateTradeSlotDropdown();
+    populateTradeSlotDropdown(preserveSlot);
     updateRiskCalc();
     renderAll();
 }
@@ -420,7 +444,7 @@ function onAccountSelected() {
 // If only 1 slot → hide dropdown, auto-select slot 0
 // If multiple slots → show dropdown
 // ──────────────────────────────────────────────
-function populateTradeSlotDropdown() {
+function populateTradeSlotDropdown(preserveSlot) {
     const wrap = document.getElementById('tradeSlotWrap');
     const sel  = document.getElementById('tradeSlotSelect');
     if (!wrap || !sel) return;
@@ -433,9 +457,8 @@ function populateTradeSlotDropdown() {
 
     sel.innerHTML = '';
     if (slots.length <= 1) {
-        // Only 1 slot — hide dropdown, use slot 0
         wrap.style.display = 'none';
-        selectedSlotIdx = 0;
+        if (!preserveSlot) selectedSlotIdx = 0;
         return;
     }
 
@@ -447,8 +470,12 @@ function populateTradeSlotDropdown() {
         o.textContent = `Slot ${i + 1}  ${sl.start} → ${sl.expire || '--'}  (Risk: ${sl.risk}%)`;
         sel.appendChild(o);
     });
-    selectedSlotIdx = 0;
-    sel.value = '0';
+
+    // If preserveSlot, keep current selectedSlotIdx; else reset to 0
+    if (!preserveSlot) selectedSlotIdx = 0;
+    // Clamp to valid range
+    if (selectedSlotIdx >= slots.length) selectedSlotIdx = 0;
+    sel.value = String(selectedSlotIdx);
 }
 
 window.onTradeSlotChange = function () {
@@ -456,6 +483,7 @@ window.onTradeSlotChange = function () {
     selectedSlotIdx = val !== '' ? parseInt(val) : 0;
     updateRiskCalc();
     updateSelectedInfoBar();
+    highlightSelectedCard(); // ← slot change pe card highlight update karo
 };
 
 
@@ -521,13 +549,64 @@ function highlightSelectedCard() {
     removeCardHighlight();
     if (!selectedClusterId || selectedNodeIdx === null) return;
     document.querySelectorAll('.s-timer-card').forEach(c => {
-        if (c.dataset.cluster === selectedClusterId && parseInt(c.dataset.node) === selectedNodeIdx)
+        const matchCluster = c.dataset.cluster === selectedClusterId;
+        const matchNode    = parseInt(c.dataset.node) === selectedNodeIdx;
+        const matchSlot    = parseInt(c.dataset.slot || '0') === selectedSlotIdx;
+        if (matchCluster && matchNode && matchSlot)
             c.classList.add('node-selected');
     });
 }
 function removeCardHighlight() {
     document.querySelectorAll('.s-timer-card').forEach(c => c.classList.remove('node-selected'));
 }
+
+// ── SELECT FROM SLIDER CARD CLICK ──
+window.selectFromSliderCard = function(card) {
+    const cId   = card.dataset.cluster;
+    const nIdx  = parseInt(card.dataset.node);
+    const sIdx  = parseInt(card.dataset.slot || '0');
+    if (!cId || !clusters[cId]) return;
+
+    // Set cluster dropdown
+    const clSel = document.getElementById('clusterSelect');
+    if (clSel) { clSel.value = cId; }
+    selectedClusterId = cId;
+    localStorage.setItem('isi_sel_cluster', cId);
+
+    // Populate account dropdown
+    populateAccountDropdown(cId);
+
+    // Set account dropdown
+    const accSel = document.getElementById('accountSelect');
+    if (accSel) { accSel.value = String(nIdx); accSel.disabled = false; }
+    selectedNodeIdx = nIdx;
+    selectedSlotIdx = sIdx;
+    localStorage.setItem('isi_sel_node', nIdx);
+
+    // Set trade slot dropdown
+    const dayName = ['SUN','MON','TUE','WED','THU','FRI','SAT'][new Date().getDay()];
+    const n = clusters[cId]?.nodes[nIdx];
+    if (n) {
+        const slots = getNodeSlotsForDay(n, dayName);
+        const wrap = document.getElementById('tradeSlotWrap');
+        const slSel = document.getElementById('tradeSlotSelect');
+        if (slots.length > 1 && wrap && slSel) {
+            wrap.style.display = 'block';
+            slSel.innerHTML = '';
+            slots.forEach((sl, i) => {
+                const o = document.createElement('option');
+                o.value = i;
+                o.textContent = `Slot ${i+1}  ${sl.start} → ${sl.expire||'--'}  (Risk: ${sl.risk}%)`;
+                slSel.appendChild(o);
+            });
+            slSel.value = String(sIdx);
+        } else if (wrap) {
+            wrap.style.display = 'none';
+        }
+    }
+
+    onAccountSelected(true); // true = preserve selectedSlotIdx
+};
 
 // ──────────────────────────────────────────────
 // RISK CALCULATION
@@ -542,6 +621,32 @@ window.updateRiskCalc = function () {
 
     updateFlowStatus();
 };
+
+// Custom asset toggle
+window.onAssetChange = function () {
+    const sel    = document.getElementById('assetSelect');
+    const custom = document.getElementById('assetCustomInput');
+    if (!sel || !custom) return;
+    if (sel.value === 'CUSTOM') {
+        custom.style.display = 'block';
+        custom.focus();
+    } else {
+        custom.style.display = 'none';
+        custom.value = '';
+    }
+    updateRiskCalc();
+};
+
+// Get actual asset name (custom or dropdown)
+function getSelectedAsset() {
+    const sel = document.getElementById('assetSelect');
+    if (!sel) return 'XAUUSD';
+    if (sel.value === 'CUSTOM') {
+        const ci = document.getElementById('assetCustomInput');
+        return (ci?.value?.trim().toUpperCase()) || 'CUSTOM';
+    }
+    return sel.value || 'XAUUSD';
+}
 
 // ──────────────────────────────────────────────
 // BIAS ENGINE
@@ -678,7 +783,10 @@ window.initFlowUI = function () {
     const c = document.getElementById('binaryChecklist');
     if (!c) return;
     c.innerHTML = '';
-    flowKeys.forEach((key, idx) => {
+    // Load from active node settings if available, fallback to default hardcoded
+    const node    = getActiveNode();
+    const keysToUse = (node?.flowKeys && node.flowKeys.length > 0) ? node.flowKeys : flowKeys;
+    keysToUse.forEach((key, idx) => {
         const starColor = STAR_COLORS[idx] || '#c5a059';
         const state     = flowMemory[key] || '';
         const glowCSS   = state
@@ -757,11 +865,74 @@ function loadPreEntryBadge() {
         if (!pe || !badge) return;
         const today = new Date().toISOString().slice(0,10);
         if (pe.date !== today) return; // only show today's
+
         badge.style.display = 'flex';
         document.getElementById('peBadgeScore').textContent = `Score: ${pe.score}/100`;
         document.getElementById('peBadgeBias').textContent  = pe.biasResult ? pe.biasResult.slice(0,50) : '';
         if (pe.conflict) document.getElementById('peBadgeConflict').textContent = '⚠ CONFLICT';
-    } catch(e) {}
+
+        // ── AUTO-FILL Trading Control Panel ──
+        // Asset
+        const assetSel = document.getElementById('assetSelect');
+        const customIn = document.getElementById('assetCustomInput');
+        if (assetSel && pe.asset) {
+            const knownAssets = ['XAUUSD','EURUSD','GBPUSD','BTCUSD','NAS100','US30'];
+            if (knownAssets.includes(pe.asset)) {
+                assetSel.value = pe.asset;
+                if (customIn) customIn.style.display = 'none';
+            } else {
+                assetSel.value = 'CUSTOM';
+                if (customIn) { customIn.style.display = 'block'; customIn.value = pe.asset; }
+            }
+        }
+
+        // ── SHOW ORDER CARD ──
+        fillOrderCard(pe);
+
+        // ── AUTO-FILL Qty in execution flow ──
+        if (pe.calcQty) {
+            const rqEl = document.getElementById('riskQty');
+            if (rqEl) {
+                rqEl.value = pe.calcQty;
+                rqEl.dataset.userEdited = '1';
+                updateFlowStatus();
+            }
+        }
+    } catch(e) { console.warn('loadPreEntryBadge error:', e); }
+}
+
+// ── FILL ORDER CARD from pre-entry data ──
+function fillOrderCard(pe) {
+    const card = document.getElementById('orderCard');
+    if (!card) return;
+
+    if (!pe || !pe.entryPrice || !pe.stopLoss) {
+        card.style.display = 'none';
+        return;
+    }
+
+    card.style.display = 'block';
+
+    const dirColor = pe.direction === 'LONG' ? '#00c805' : pe.direction === 'SHORT' ? '#ff3131' : '#c5a059';
+
+    const setText = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = val ?? '—';
+    };
+
+    setText('ocAsset',     pe.asset || '—');
+    const dirEl = document.getElementById('ocDirection');
+    if (dirEl) { dirEl.textContent = pe.direction || '—'; dirEl.style.color = dirColor; }
+    setText('ocQty',       pe.calcQty     ? String(pe.calcQty)         : '—');
+    setText('ocEntry',     pe.entryPrice  ? String(pe.entryPrice)      : '—');
+    setText('ocSL',        pe.stopLoss    ? String(pe.stopLoss)        : '—');
+    setText('ocTarget',    pe.targetZone  ? String(pe.targetZone)      : '—');
+    setText('ocRiskAmt',   pe.riskAmt     ? `${pe.curr||''}${pe.riskAmt}` : '—');
+    setText('ocRiskPct',   pe.riskPct     ? `${pe.riskPct}%`          : '—');
+    setText('ocScore',     pe.score       ? `${pe.score}/100`          : '—');
+
+    const rr = pe.rrPlanned || pe.calcRR || '—';
+    setText('ocRR',        rr !== '—' ? `1:${rr} R` : '—');
 }
 
 window.revealSections = function () {
@@ -816,7 +987,7 @@ window.handleSaveAction = async function () {
             entry:     document.getElementById('entryPrice').value,
             exit:      document.getElementById('exitPrice').value,
             position:  document.getElementById('positionType').value,
-            asset:     document.getElementById('assetSelect').value,
+            asset:     getSelectedAsset(),
             grade:     document.getElementById('gradeSelect').value,
             vios:      [...currentVios],
             liq:       document.getElementById('liqType').value,

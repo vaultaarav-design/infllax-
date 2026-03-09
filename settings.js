@@ -13,6 +13,8 @@ const firebaseConfig = {
 };
 const app = initializeApp(firebaseConfig);
 const db      = getDatabase(app);
+let clusters      = {}; // global cache for transaction section
+let liveStatsCache = {}; // live stats cache for transaction dropdowns
 const storage = getStorage(app);
 
 const days = ['MON','TUE','WED','THU','FRI'];
@@ -427,6 +429,8 @@ async function renderClusterCard(id, cluster) {
 }
 
 onValue(ref(db, 'isi_v6/clusters'), async (snap) => {
+    clusters = snap.val() || {}; // keep global in sync
+    populateTxClusters(); // refresh transaction dropdown
     const list = document.getElementById('activeList');
     const data = snap.val();
     if (!data) {
@@ -1188,4 +1192,181 @@ window.deleteKBEntry = function(key) {
 // ── Init ──
 document.addEventListener('DOMContentLoaded', () => {
     buildAIDropdown();
+});
+
+// ══════════════════════════════════════════════════════════════════
+// CAPITAL TRANSACTION — DEPOSIT / WITHDRAWAL
+// Path: isi_v6/transactions/{clusterId}/{nodeIdx}/{pushKey}
+// Balance update: isi_v6/stats/{clusterId}/{nodeIdx}/currentBal
+// ══════════════════════════════════════════════════════════════════
+
+let _txType = 'DEPOSIT'; // default
+
+// Populate cluster dropdown for transaction section
+function populateTxClusters() {
+    const sel = document.getElementById('txClusterSel');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '<option value="">— Cluster Select Karo —</option>';
+    Object.entries(clusters).forEach(([id, c]) => {
+        const o = document.createElement('option');
+        o.value = id; o.textContent = c.title;
+        sel.appendChild(o);
+    });
+    if (current && clusters[current]) sel.value = current;
+}
+
+window.onTxClusterChange = function() {
+    const cId = document.getElementById('txClusterSel').value;
+    const accSel = document.getElementById('txAccountSel');
+    accSel.innerHTML = '<option value="">— Account Chuno —</option>';
+    if (!cId) { accSel.disabled = true; accSel.style.opacity = '0.5'; return; }
+    const nodes = clusters[cId]?.nodes || [];
+    nodes.forEach((n, i) => {
+        const o = document.createElement('option');
+        const s = (liveStatsCache[cId]?.[String(i)]) || {};
+        const bal = s.currentBal ?? n.balance ?? 0;
+        o.value = i;
+        o.textContent = `${n.title || 'Account '+(i+1)}  [${n.curr || '$'}${bal.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}]`;
+        accSel.appendChild(o);
+    });
+    accSel.disabled = false;
+    accSel.style.opacity = '1';
+};
+
+window.setTxType = function(type) {
+    _txType = type;
+    const dBtn = document.getElementById('txTypeDeposit');
+    const wBtn = document.getElementById('txTypeWithdraw');
+    if (type === 'DEPOSIT') {
+        dBtn.style.cssText = 'flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:2px solid var(--accent);background:#001a00;color:var(--accent);letter-spacing:1px;';
+        wBtn.style.cssText = 'flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#555;letter-spacing:1px;';
+    } else {
+        wBtn.style.cssText = 'flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:2px solid var(--danger);background:#1a0000;color:var(--danger);letter-spacing:1px;';
+        dBtn.style.cssText = 'flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#555;letter-spacing:1px;';
+    }
+};
+
+// Stats live listener for transaction section
+onValue(ref(db, 'isi_v6/stats'), snap => {
+    liveStatsCache = snap.val() || {};
+    populateTxClusters();
+});
+// Note: clusters onValue is set at line 430 — populateTxClusters also called from there
+
+window.submitTransaction = async function() {
+    const cId    = document.getElementById('txClusterSel').value;
+    const nIdx   = document.getElementById('txAccountSel').value;
+    const amount = parseFloat(document.getElementById('txAmount').value);
+    const date   = document.getElementById('txDate').value;
+    const note   = document.getElementById('txNote').value.trim();
+    const pass   = document.getElementById('txPassword').value;
+    const btn    = document.getElementById('txSubmitBtn');
+
+    // Validations
+    if (!cId)              return showTxToast('❌ Cluster select karo', 'error');
+    if (nIdx === '')       return showTxToast('❌ Account select karo', 'error');
+    if (!amount || amount <= 0) return showTxToast('❌ Valid amount daalo', 'error');
+    if (!date)             return showTxToast('❌ Date select karo', 'error');
+
+    // Password check
+    const clusterPass = clusters[cId]?.resetKey || '';
+    if (!clusterPass)  return showTxToast('❌ Cluster password not found', 'error');
+    if (pass !== clusterPass) return showTxToast('❌ Wrong password!', 'error');
+
+    const node = clusters[cId]?.nodes[parseInt(nIdx)];
+    if (!node) return showTxToast('❌ Account not found', 'error');
+
+    btn.disabled = true;
+    btn.textContent = '⏳ Saving...';
+
+    try {
+        // 1. Get current live balance
+        const statsSnap = await get(ref(db, `isi_v6/stats/${cId}/${String(nIdx)}`));
+        const stats = statsSnap.val() || {};
+        const oldBal = stats.currentBal ?? node.balance ?? 0;
+
+        // 2. Calculate new balance
+        const signedAmt = _txType === 'DEPOSIT' ? Math.abs(amount) : -Math.abs(amount);
+        const newBal = oldBal + signedAmt;
+
+        // 3. Save transaction record
+        const txRecord = {
+            type:      _txType,
+            amount:    signedAmt,
+            absAmount: Math.abs(amount),
+            date:      date,
+            note:      note || '',
+            balBefore: oldBal,
+            balAfter:  newBal,
+            currency:  node.curr || '$',
+            nodeTitle: node.title || 'Account ' + (parseInt(nIdx)+1),
+            clusterTitle: clusters[cId]?.title || cId,
+            savedAt:   new Date().toISOString()
+        };
+        await _fbPush(ref(db, `isi_v6/transactions/${cId}/${String(nIdx)}`), txRecord);
+
+        // 4. Update live balance in stats path
+        await update(ref(db, `isi_v6/stats/${cId}/${String(nIdx)}`), {
+            currentBal: newBal
+        });
+
+        // 5. Success popup
+        showTxToast(
+            `✅ ${_txType === 'DEPOSIT' ? 'Deposit' : 'Withdrawal'} Successful!\n${node.curr || '$'}${Math.abs(amount).toLocaleString('en-US',{minimumFractionDigits:2})} → New Balance: ${node.curr || '$'}${newBal.toLocaleString('en-US',{minimumFractionDigits:2})}`,
+            'success'
+        );
+
+        // Reset form
+        document.getElementById('txAmount').value   = '';
+        document.getElementById('txNote').value     = '';
+        document.getElementById('txPassword').value = '';
+
+    } catch(e) {
+        showTxToast('❌ Error: ' + e.message, 'error');
+    }
+
+    btn.disabled = false;
+    btn.textContent = '💰 SUBMIT TRANSACTION';
+};
+
+function showTxToast(msg, type = 'success') {
+    // Remove existing toast
+    document.getElementById('txToastEl')?.remove();
+
+    const isSuccess = type === 'success';
+    const bg  = isSuccess ? '#001a00' : '#1a0000';
+    const bc  = isSuccess ? '#00c805' : '#ff3b3b';
+    const col = isSuccess ? '#00c805' : '#ff5252';
+
+    const toast = document.createElement('div');
+    toast.id = 'txToastEl';
+    toast.style.cssText = `
+        position:fixed; bottom:24px; right:24px; z-index:99999;
+        background:${bg}; border:1.5px solid ${bc}; color:${col};
+        padding:14px 20px; border-radius:8px; font-size:0.78rem;
+        font-weight:bold; max-width:340px; line-height:1.6;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.7);
+        white-space: pre-line;
+        animation: txFadeIn 0.3s ease;
+    `;
+    toast.textContent = msg;
+
+    // Add animation keyframe once
+    if (!document.getElementById('txToastStyle')) {
+        const st = document.createElement('style');
+        st.id = 'txToastStyle';
+        st.textContent = '@keyframes txFadeIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }';
+        document.head.appendChild(st);
+    }
+
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), isSuccess ? 5000 : 4000);
+}
+
+// Set today's date on load
+document.addEventListener('DOMContentLoaded', () => {
+    const txDateEl = document.getElementById('txDate');
+    if (txDateEl) txDateEl.value = new Date().toISOString().slice(0,10);
+    setTxType('DEPOSIT');
 });

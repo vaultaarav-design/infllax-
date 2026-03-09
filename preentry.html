@@ -131,6 +131,27 @@
 }
 #iScoreVal { font-size:1.6rem; font-weight:900; font-family:monospace; }
 
+/* ── PE TIMER SLIDER ── */
+.pe-slider-wrapper {
+    width:100%; overflow:hidden; background:#050505;
+    border-bottom:2px solid #1a1a1a; padding:12px 0;
+}
+.pe-slider-track {
+    display:flex; gap:12px; padding:0 14px;
+    animation:peSlidAnim 35s linear infinite;
+}
+.pe-slider-track.no-anim { animation:none; flex-wrap:wrap; }
+@keyframes peSlidAnim { 0%{transform:translateX(0);} 100%{transform:translateX(-50%);} }
+.pe-slider-track:hover { animation-play-state:paused; }
+.pe-slide-card {
+    min-width:190px; max-width:190px; flex-shrink:0;
+    background:#0a0a0a; border:1.5px solid #222;
+    border-radius:8px; padding:10px 12px;
+    transition:0.2s; position:relative;
+    cursor:pointer;
+}
+.pe-slide-card:hover { transform:translateY(-2px); }
+
 /* PROCEED BUTTON */
 #proceedBtn {
     width:100%; padding:18px; font-size:1rem; font-weight:900;
@@ -203,6 +224,13 @@
         </button>
     </div>
 </header>
+
+<!-- ── PE SESSION SLIDER ── -->
+<div class="pe-slider-wrapper">
+    <div id="peTimerSlider" class="pe-slider-track">
+        <div style="padding:8px 16px;font-size:0.65rem;color:#444;letter-spacing:2px;">📡 Connecting...</div>
+    </div>
+</div>
 
 <div class="container">
 
@@ -439,17 +467,28 @@
 <!-- 4. TRADE PLAN -->
 <div class="card">
     <h2>4. Pre-Trade Plan & Risk</h2>
+
+    <!-- Risk Amount from selected session -->
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;padding:10px 14px;background:#0a0500;border:1px solid #2a1800;border-radius:7px;">
+        <div style="font-size:0.58rem;color:#c5a059;letter-spacing:2px;font-weight:bold;">💰 SESSION RISK AMOUNT</div>
+        <div id="peRiskAmtDisplay" style="display:none;font-size:1.1rem;font-weight:900;color:var(--gold);font-family:monospace;">—</div>
+        <div id="peRiskHint" style="font-size:0.6rem;color:#555;font-style:italic;">← Click a session card above to auto-fill</div>
+    </div>
+
     <div class="grid">
         <div>
             <label style="font-size:0.68rem;color:#666;">Asset</label>
-            <select id="peAsset">
+            <select id="peAsset" onchange="onPeAssetChange()">
                 <option value="XAUUSD">XAUUSD (Gold)</option>
                 <option value="EURUSD">EURUSD</option>
                 <option value="GBPUSD">GBPUSD</option>
                 <option value="BTCUSD">BTCUSD</option>
                 <option value="NAS100">NAS100</option>
                 <option value="US30">US30</option>
+                <option value="CUSTOM">✏ Custom Asset...</option>
             </select>
+            <input type="text" id="peAssetCustom" placeholder="Enter asset name..."
+                style="display:none;margin-top:5px;font-size:0.75rem;" oninput="calcQty()">
         </div>
         <div>
             <label style="font-size:0.68rem;color:#666;">Planned Direction</label>
@@ -461,15 +500,15 @@
             </select>
         </div>
         <div>
-            <label style="font-size:0.68rem;color:#666;">Entry Zone (Price)</label>
-            <input type="number" id="peEntryZone" placeholder="e.g. 2650.00" step="0.01">
+            <label style="font-size:0.68rem;color:#666;">Entry Price</label>
+            <input type="number" id="peEntryZone" placeholder="e.g. 2650.00" step="0.01" oninput="calcRR();calcQty();">
         </div>
         <div>
-            <label style="font-size:0.68rem;color:#666;">Stop Loss Zone (Price)</label>
-            <input type="number" id="peStopZone" placeholder="e.g. 2643.00" step="0.01" oninput="calcRR()">
+            <label style="font-size:0.68rem;color:#666;">Stop Loss Price</label>
+            <input type="number" id="peStopZone" placeholder="e.g. 2643.00" step="0.01" oninput="calcRR();calcQty();">
         </div>
         <div>
-            <label style="font-size:0.68rem;color:#666;">Target Zone (Price)</label>
+            <label style="font-size:0.68rem;color:#666;">Target Price</label>
             <input type="number" id="peTargetZone" placeholder="e.g. 2671.00" step="0.01" oninput="calcRR()">
         </div>
         <div>
@@ -477,6 +516,21 @@
             <div id="peRR" style="padding:9px;background:#0a0a0a;border:1px solid #222;border-radius:5px;font-family:monospace;color:var(--gold);font-weight:bold;margin-top:3px;">—</div>
         </div>
     </div>
+
+    <!-- AUTO QTY DISPLAY -->
+    <div id="peCalcQtyBox" style="display:none;margin-top:12px;padding:12px 16px;background:linear-gradient(135deg,#020d08,#020818);border:1.5px solid #00c805;border-radius:8px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <div style="font-size:0.52rem;color:#4a9eff;letter-spacing:3px;font-weight:bold;margin-bottom:4px;">📊 AUTO-CALCULATED QTY</div>
+                <div id="peQtyBreakdown" style="font-size:0.6rem;color:#555;font-family:monospace;">—</div>
+            </div>
+            <div style="text-align:right;">
+                <div style="font-size:0.52rem;color:#4a9eff;letter-spacing:2px;margin-bottom:2px;">QTY / LOT SIZE</div>
+                <div id="peCalcQtyDisplay" style="font-size:1.6rem;font-weight:900;color:var(--accent);font-family:monospace;">—</div>
+            </div>
+        </div>
+    </div>
+
     <div style="margin-top:10px;">
         <label style="font-size:0.68rem;color:#666;">Pre-Trade Note (what are you seeing?)</label>
         <textarea id="peNote" rows="2" placeholder="e.g. Price swept equal lows at 2643, now showing CHoCH on M1 with FVG above. HTF demand holding. Looking for LTF confirmation..."></textarea>

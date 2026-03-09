@@ -246,6 +246,60 @@
                 <div id="kbSettingsStats" style="margin-top:8px;font-size:0.6rem;color:#444;text-align:center;"></div>
             </div>
 
+            <!-- ═══════════════════════════════════════════════════════
+                 CAPITAL TRANSACTION — DEPOSIT / WITHDRAWAL
+            ═══════════════════════════════════════════════════════ -->
+            <div style="background:#0a0a0a;border:1px solid #1a2a00;border-top:3px solid var(--gold);border-radius:6px;padding:20px;margin-top:20px;">
+                <div style="font-size:0.6rem;color:var(--gold);letter-spacing:3px;font-weight:bold;margin-bottom:14px;">💰 CAPITAL TRANSACTION — DEPOSIT / WITHDRAWAL</div>
+
+                <!-- Cluster Select -->
+                <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">SELECT CLUSTER</div>
+                <select id="txClusterSel" onchange="onTxClusterChange()" style="width:100%;background:#000;color:#ccc;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:10px;">
+                    <option value="">— Cluster Select Karo —</option>
+                </select>
+
+                <!-- Account Select -->
+                <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">SELECT ACCOUNT</div>
+                <select id="txAccountSel" disabled style="width:100%;background:#000;color:#ccc;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:10px;opacity:0.5;">
+                    <option value="">— Pehle Cluster Chuno —</option>
+                </select>
+
+                <!-- Type -->
+                <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:6px;">TRANSACTION TYPE</div>
+                <div style="display:flex;gap:8px;margin-bottom:10px;">
+                    <button id="txTypeDeposit" onclick="setTxType('DEPOSIT')" style="flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:2px solid var(--accent);background:#001a00;color:var(--accent);letter-spacing:1px;">⬆ DEPOSIT</button>
+                    <button id="txTypeWithdraw" onclick="setTxType('WITHDRAWAL')" style="flex:1;padding:8px;border-radius:4px;font-size:0.7rem;font-weight:bold;cursor:pointer;border:1px solid #333;background:#111;color:#555;letter-spacing:1px;">⬇ WITHDRAWAL</button>
+                </div>
+
+                <!-- Amount + Note -->
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+                    <div>
+                        <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">AMOUNT *</div>
+                        <input type="number" id="txAmount" placeholder="e.g. 50000" min="0" step="0.01"
+                            style="width:100%;background:#000;color:#fff;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.78rem;box-sizing:border-box;">
+                    </div>
+                    <div>
+                        <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">DATE *</div>
+                        <input type="date" id="txDate"
+                            style="width:100%;background:#000;color:#fff;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.78rem;box-sizing:border-box;">
+                    </div>
+                </div>
+                <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">NOTE (Optional)</div>
+                <input type="text" id="txNote" placeholder="e.g. Broker deposit, monthly profit withdrawal..."
+                    style="width:100%;background:#000;color:#ccc;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.73rem;margin-bottom:10px;box-sizing:border-box;">
+
+                <!-- Password -->
+                <div style="font-size:0.58rem;color:#555;letter-spacing:1px;margin-bottom:4px;">CLUSTER SECURITY PASSWORD *</div>
+                <input type="password" id="txPassword" placeholder="Cluster ka security password..."
+                    style="width:100%;background:#000;color:#fff;border:1px solid #333;padding:8px 10px;border-radius:4px;font-size:0.75rem;margin-bottom:12px;box-sizing:border-box;">
+
+                <!-- Submit -->
+                <button id="txSubmitBtn" onclick="submitTransaction()"
+                    style="width:100%;background:linear-gradient(135deg,#001a00,#003300);color:var(--accent);border:2px solid var(--accent);padding:11px;border-radius:5px;font-size:0.78rem;font-weight:bold;cursor:pointer;letter-spacing:2px;">
+                    💰 SUBMIT TRANSACTION
+                </button>
+            </div>
+
             <!-- ═══════════════════════════════════════════
                  ADD ENTRY MODAL (inline, for settings page)
             ═══════════════════════════════════════════ -->

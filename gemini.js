@@ -6,7 +6,7 @@
 // ============================================================
 
 const HARDCODED = {
-    gemini:     'AIzaSyDoWQ7VQDtp6LBB-dBIOgSjva1GZR-Rk28',
+    gemini:     '', // Key removed from source — Settings page mein enter karo
     groq:       '',
     openrouter: '',
     cohere:     ''

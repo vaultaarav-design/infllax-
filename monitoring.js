@@ -238,7 +238,7 @@ function loadClusterData(_unused) {
 }
 
 // ──────────────────────────────────────────────
-// FILTER CHANGE HANDLER
+// FILTER CHANGE HANDLER (single combined definition)
 // ──────────────────────────────────────────────
 window.onFilterChange = function () {
     // Custom range toggle
@@ -247,6 +247,9 @@ window.onFilterChange = function () {
     if (customWrap) customWrap.style.display = range === 'custom' ? 'flex' : 'none';
     updateSelectedFromMc();
     renderAll();
+    // List view bhi update karo agar active hai
+    const mode = document.getElementById('calViewMode')?.value;
+    if (mode === 'list') renderListView();
 };
 
 // ──────────────────────────────────────────────
@@ -294,6 +297,7 @@ function renderAll() {
     const filtered = getFilteredTrades();
     renderPerformanceCard(filtered);
     renderRecentSessions();
+    loadTxHistory(); // refresh transaction history section
     const mode = document.getElementById('calViewMode')?.value || 'calendar';
     if (mode === 'list') renderListView();
     else renderCalendar(filtered);
@@ -898,13 +902,7 @@ function renderListView() {
     }).join('');
 }
 
-// Also re-render list view when filters change
-const _origOnFilter = window.onFilterChange;
-window.onFilterChange = function() {
-    if (_origOnFilter) _origOnFilter();
-    const mode = document.getElementById('calViewMode')?.value;
-    if (mode === 'list') renderListView();
-};
+// onFilterChange is defined above as single combined function — no duplicate needed
 
 // ══════════════════════════════════════════════════════════
 // AI FULL ANALYSIS — MONITORING PAGE
@@ -1343,3 +1341,285 @@ window.confirmDeleteSS = async function() {
 
 
 
+
+// ══════════════════════════════════════════════════════════════════
+// TRANSACTION HISTORY — monitoring page
+// Loads trades + deposits + withdrawals for all selected nodes
+// isi_v6/transactions/{cId}/{nIdx}
+// ══════════════════════════════════════════════════════════════════
+
+let _allTransactions = []; // combined: trades + deposit/withdrawal
+
+// Load whenever filter changes or clusters change
+// ── TOGGLE TRANSACTION HISTORY ──
+window.toggleTxHistory = function() {
+    const wrap  = document.getElementById('txHistBody_wrap');
+    const arrow = document.getElementById('txToggleArrow');
+    if (!wrap) return;
+    const isOpen = wrap.style.display !== 'none';
+    wrap.style.display  = isOpen ? 'none' : 'block';
+    if (arrow) arrow.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(180deg)';
+    if (!isOpen) loadTxHistory(); // load on first open
+};
+
+window.loadTxHistory = async function() {
+    const filter    = document.getElementById('txHistFilter')?.value || 'ALL';
+    const tbody     = document.getElementById('txHistBody');
+    const panelOpen = document.getElementById('txHistBody_wrap')?.style.display !== 'none';
+    if (!tbody) return;
+
+    if (panelOpen) {
+        tbody.innerHTML = '<tr><td colspan="6" style="color:#555;text-align:center;padding:18px;font-size:0.7rem;">⏳ Loading...</td></tr>';
+    }
+
+    // Collect all selected nodes
+    const selectedNodes = [];
+    Object.entries(mcSelections).forEach(([cId, cSel]) => {
+        if (!cSel.on) return;
+        const clust = clusters[cId]; if (!clust) return;
+        (clust.nodes || []).forEach((node, nIdx) => {
+            if (cSel.nodes[nIdx] === false) return;
+            selectedNodes.push({ cId, nIdx: String(nIdx), node, clust });
+        });
+    });
+
+    if (!selectedNodes.length) {
+        if (panelOpen) tbody.innerHTML = '<tr><td colspan="6" style="color:#444;text-align:center;padding:20px;font-size:0.7rem;">Koi cluster/account select nahi. Upar grid mein tick karo.</td></tr>';
+        return;
+    }
+
+    // Fetch all transactions + build combined list
+    const combined = [];
+
+    await Promise.all(selectedNodes.map(async ({ cId, nIdx, node, clust }) => {
+        // Deposit/Withdrawal transactions
+        try {
+            const snap = await get(ref(db, `isi_v6/transactions/${cId}/${nIdx}`));
+            if (snap.val()) {
+                Object.values(snap.val()).forEach(tx => {
+                    combined.push({
+                        date:         tx.date || tx.savedAt?.slice(0,10) || '—',
+                        savedAt:      tx.savedAt || '',
+                        clusterTitle: clust.title || cId,
+                        nodeTitle:    node.title || 'Account '+(parseInt(nIdx)+1),
+                        type:         tx.type,      // DEPOSIT / WITHDRAWAL
+                        asset:        '—',
+                        note:         tx.note || '',
+                        amount:       tx.amount,
+                        absAmount:    tx.absAmount || Math.abs(tx.amount),
+                        currency:     tx.currency || node.curr || '$',
+                        balAfter:     tx.balAfter ?? null,
+                        _rowType:     tx.type === 'DEPOSIT' ? 'DEPOSIT' : 'WITHDRAWAL'
+                    });
+                });
+            }
+        } catch(e) {}
+
+        // Trades from allTrades
+        allTrades.filter(t => t._clusterId === cId && String(t._nodeIdx) === nIdx).forEach(t => {
+            combined.push({
+                date:         t.date || '—',
+                savedAt:      t.savedAt || '',
+                clusterTitle: clust.title || cId,
+                nodeTitle:    node.title || 'Account '+(parseInt(nIdx)+1),
+                type:         t.type,     // Target / Stop Loss / Break Even
+                asset:        t.asset || '—',
+                note:         t.grade ? `Grade: ${t.grade}` : '',
+                amount:       t.pl || 0,
+                absAmount:    Math.abs(t.pl || 0),
+                currency:     node.curr || '$',
+                balAfter:     null,
+                _rowType:     'TRADE'
+            });
+        });
+    }));
+
+    // Sort by date + savedAt descending
+    combined.sort((a,b) => {
+        const d = b.date.localeCompare(a.date);
+        return d !== 0 ? d : b.savedAt.localeCompare(a.savedAt);
+    });
+
+    _allTransactions = combined;
+
+    // Apply filter
+    const filtered = filter === 'ALL' ? combined
+        : filter === 'TRADE' ? combined.filter(r => r._rowType === 'TRADE')
+        : combined.filter(r => r._rowType === filter);
+
+    // Summary chips
+    const totalDeposit    = combined.filter(r=>r._rowType==='DEPOSIT').reduce((s,r)=>s+r.absAmount,0);
+    const totalWithdrawal = combined.filter(r=>r._rowType==='WITHDRAWAL').reduce((s,r)=>s+r.absAmount,0);
+    const totalPL         = combined.filter(r=>r._rowType==='TRADE').reduce((s,r)=>s+r.amount,0);
+    const wins            = combined.filter(r=>r._rowType==='TRADE' && r.amount>0).length;
+    const trades          = combined.filter(r=>r._rowType==='TRADE').length;
+
+    const chipsData = [
+        { label: 'Total Deposits',    val: `+$${totalDeposit.toFixed(2)}`,  col: '#00c805' },
+        { label: 'Total Withdrawals', val: `-$${totalWithdrawal.toFixed(2)}`,col: '#ff3b3b' },
+        { label: 'Trading P/L',       val: (totalPL>=0?'+':'')+'$'+totalPL.toFixed(2), col: totalPL>=0?'#00c805':'#ff3b3b' },
+        { label: 'Win Rate',          val: trades ? `${((wins/trades)*100).toFixed(1)}%` : '—', col: '#c5a059' },
+    ].map(c => `<div style="background:#0d0d0d;border:1px solid #1a1a1a;border-left:3px solid ${c.col};padding:5px 10px;border-radius:4px;min-width:100px;">
+        <div style="font-size:0.55rem;color:#555;letter-spacing:1px;">${c.label}</div>
+        <div style="font-size:0.8rem;font-weight:bold;color:${c.col};">${c.val}</div>
+    </div>`).join('');
+
+    // Only inline header chips (panel body chips removed — no duplicate)
+    const inlineChips = document.getElementById('txSummaryChipsInline');
+    if (inlineChips) inlineChips.innerHTML = chipsData;
+
+    if (!filtered.length) {
+        if (panelOpen) tbody.innerHTML = '<tr><td colspan="6" style="color:#444;text-align:center;padding:20px;font-size:0.7rem;">Is filter mein koi transaction nahi mila.</td></tr>';
+        return;
+    }
+
+    if (panelOpen) tbody.innerHTML = filtered.map(row => {
+        const isDeposit    = row._rowType === 'DEPOSIT';
+        const isWithdrawal = row._rowType === 'WITHDRAWAL';
+        const isTrade      = row._rowType === 'TRADE';
+        const isWin        = isTrade && row.amount >= 0;
+
+        const typeCol  = isDeposit ? '#00c805' : isWithdrawal ? '#ff3b3b' : (isWin ? '#00c805' : '#ff3b3b');
+        const typeBg   = isDeposit ? '#001500' : isWithdrawal ? '#1a0000' : (isWin ? '#001200' : '#120000');
+        const typeLabel= isDeposit ? '⬆ DEPOSIT' : isWithdrawal ? '⬇ WITHDRAWAL'
+                        : row.type === 'Target' ? '✅ WIN' : row.type === 'Break Even' ? '⬛ BE' : '❌ LOSS';
+
+        const amtStr = (row.amount >= 0 ? '+' : '') + row.currency + Math.abs(row.amount).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+        const balStr = row.balAfter != null
+            ? row.currency + row.balAfter.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})
+            : '—';
+
+        return `<tr style="border-bottom:1px solid #111;">
+            <td style="padding:5px 8px;color:#666;white-space:nowrap;">${row.date}</td>
+            <td style="padding:5px 8px;color:#aaa;white-space:nowrap;max-width:130px;overflow:hidden;text-overflow:ellipsis;">
+                <span style="color:#555;font-size:0.6rem;">${row.clusterTitle}</span>
+                <span style="color:#888;"> · ${row.nodeTitle}</span>
+            </td>
+            <td style="padding:5px 8px;">
+                <span style="background:${typeBg};color:${typeCol};border:1px solid ${typeCol};padding:2px 6px;border-radius:3px;font-size:0.58rem;font-weight:bold;white-space:nowrap;">${typeLabel}</span>
+                ${isTrade && row.asset !== '—' ? `<span style="color:#444;font-size:0.58rem;margin-left:3px;">${row.asset}</span>` : ''}
+            </td>
+            <td style="padding:5px 8px;color:#555;font-size:0.65rem;max-width:120px;overflow:hidden;text-overflow:ellipsis;">${row.note || '—'}</td>
+            <td style="padding:5px 8px;text-align:right;font-weight:bold;color:${typeCol};white-space:nowrap;">${amtStr}</td>
+            <td style="padding:5px 8px;text-align:right;color:#555;font-size:0.65rem;white-space:nowrap;">${balStr}</td>
+        </tr>`;
+    }).join('');
+};
+
+// ── PDF DOWNLOAD ──
+window.downloadTxPDF = function() {
+    if (!_allTransactions.length) {
+        alert('Pehle transaction history load karo — cluster/account select karo upar se.');
+        return;
+    }
+    const filter  = document.getElementById('txHistFilter')?.value || 'ALL';
+    const rows    = filter === 'ALL' ? _allTransactions
+        : filter === 'TRADE' ? _allTransactions.filter(r=>r._rowType==='TRADE')
+        : _allTransactions.filter(r=>r._rowType===filter);
+
+    if (!rows.length) { alert('Is filter mein koi data nahi.'); return; }
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+
+    // Header
+    doc.setFontSize(14);
+    doc.setTextColor(197, 160, 89);
+    doc.text('ISI TERMINAL — TRANSACTION HISTORY', 14, 14);
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    doc.text(`Generated: ${new Date().toLocaleString('en-GB')}  |  Filter: ${filter}  |  Total: ${rows.length} records`, 14, 20);
+
+    // Summaries per account
+    const accountGroups = {};
+    rows.forEach(r => {
+        const key = `${r.clusterTitle} · ${r.nodeTitle}`;
+        if (!accountGroups[key]) accountGroups[key] = { deposits:0, withdrawals:0, pl:0, trades:0, wins:0 };
+        const g = accountGroups[key];
+        if (r._rowType === 'DEPOSIT')    g.deposits += r.absAmount;
+        if (r._rowType === 'WITHDRAWAL') g.withdrawals += r.absAmount;
+        if (r._rowType === 'TRADE')      { g.pl += r.amount; g.trades++; if(r.amount>0) g.wins++; }
+    });
+
+    let y = 28;
+    doc.setFontSize(7);
+    doc.setTextColor(197, 160, 89);
+    doc.text('ACCOUNT SUMMARY', 14, y); y += 5;
+
+    const summaryBody = Object.entries(accountGroups).map(([acct, g]) => [
+        acct,
+        '+' + g.currency + (g.deposits||0).toFixed(2),
+        '-' + (g.currency||'$') + (g.withdrawals||0).toFixed(2),
+        ((g.pl||0)>=0?'+':'')+((g.currency)||'$')+(g.pl||0).toFixed(2),
+        String(g.trades),
+        g.trades ? ((g.wins/g.trades)*100).toFixed(1)+'%' : '—'
+    ]);
+
+    doc.autoTable({
+        startY: y,
+        head: [['Account', 'Deposits', 'Withdrawals', 'Trade P/L', 'Trades', 'Win Rate']],
+        body: summaryBody,
+        theme: 'grid',
+        styles: { fontSize: 7, cellPadding: 2 },
+        headStyles: { fillColor: [26, 20, 0], textColor: [197, 160, 89] },
+        margin: { left: 14, right: 14 }
+    });
+
+    y = doc.lastAutoTable.finalY + 8;
+    doc.setFontSize(7);
+    doc.setTextColor(197, 160, 89);
+    doc.text('FULL TRANSACTION LOG', 14, y);
+
+    const tableBody = rows.map(r => {
+        const typeLabel = r._rowType === 'DEPOSIT' ? 'DEPOSIT'
+            : r._rowType === 'WITHDRAWAL' ? 'WITHDRAWAL'
+            : r.type === 'Target' ? 'WIN' : r.type === 'Break Even' ? 'BREAK EVEN' : 'LOSS';
+        return [
+            r.date,
+            r.clusterTitle,
+            r.nodeTitle,
+            typeLabel,
+            r._rowType === 'TRADE' ? (r.asset || '—') : '—',
+            r.note || '—',
+            (r.amount >= 0 ? '+' : '') + (r.currency||'$') + Math.abs(r.amount).toFixed(2),
+            r.balAfter != null ? (r.currency||'$') + r.balAfter.toFixed(2) : '—'
+        ];
+    });
+
+    doc.autoTable({
+        startY: y + 4,
+        head: [['Date', 'Cluster', 'Account', 'Type', 'Asset', 'Note', 'Amount', 'Balance After']],
+        body: tableBody,
+        theme: 'striped',
+        styles: { fontSize: 6.5, cellPadding: 2 },
+        headStyles: { fillColor: [10, 10, 0], textColor: [197, 160, 89] },
+        columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 28 },
+            2: { cellWidth: 30 },
+            3: { cellWidth: 20 },
+            4: { cellWidth: 16 },
+            5: { cellWidth: 40 },
+            6: { cellWidth: 24, halign: 'right' },
+            7: { cellWidth: 26, halign: 'right' },
+        },
+        margin: { left: 14, right: 14 },
+        didParseCell: (data) => {
+            if (data.section === 'body' && data.column.index === 3) {
+                const v = data.cell.raw;
+                if (v === 'WIN' || v === 'DEPOSIT')       data.cell.styles.textColor = [0, 200, 5];
+                else if (v === 'LOSS' || v === 'WITHDRAWAL') data.cell.styles.textColor = [255, 59, 59];
+            }
+            if (data.section === 'body' && data.column.index === 6) {
+                const v = data.cell.raw;
+                if (v && v.startsWith('+')) data.cell.styles.textColor = [0, 200, 5];
+                else if (v && !v.startsWith('+') && !v.startsWith('—')) data.cell.styles.textColor = [255, 59, 59];
+            }
+        }
+    });
+
+    const dateStr = new Date().toISOString().slice(0,10);
+    doc.save(`ISI_Transaction_History_${dateStr}.pdf`);
+};
+
+// loadTxHistory is called from renderAll() directly — no extra hook needed
