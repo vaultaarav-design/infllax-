@@ -5,6 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ISI Algo Engine v2 | Chart + Signals + Orders</title>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>
+// Fallback CDN if jsdelivr fails
+window.__lcLoaded = typeof LightweightCharts !== 'undefined';
+if (!window.__lcLoaded) {
+  var s = document.createElement('script');
+  s.src = 'https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js';
+  document.head.appendChild(s);
+}
+</script>
 <style>
 :root{
   --gold:#c5a059;--bg:#050505;--card:#0d0d0d;--accent:#00c805;
@@ -169,6 +178,8 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
 </style>
 </head>
 <body>
+
+
 
 <!-- ══ TOP BAR ══ -->
 <div class="topbar">
@@ -603,9 +614,22 @@ try {
 // CHART
 // ══════════════════════════
 function initChart() {
+  if (typeof LightweightCharts === 'undefined') {
+    console.error('LightweightCharts not loaded — retrying in 1s');
+    setTimeout(initChart, 1000);
+    return;
+  }
   const wrap = document.getElementById('tvChart');
-  chart = LightweightCharts.createChart(wrap, {
-    width: wrap.clientWidth, height: wrap.clientHeight,
+  if (!wrap) { console.error('tvChart div missing'); return; }
+  // Ensure wrap has dimensions before creating chart
+  if (wrap.clientWidth === 0) {
+    setTimeout(initChart, 200);
+    return;
+  }
+  try {
+    chart = LightweightCharts.createChart(wrap, {
+    width: wrap.clientWidth,
+    height: wrap.clientHeight || (window.innerHeight - 100),
     layout:       { background: { color: '#050505' }, textColor: '#444' },
     grid:         { vertLines: { color: '#0a0a0a' }, horzLines: { color: '#0a0a0a' } },
     crosshair:    { mode: LightweightCharts.CrosshairMode.Normal,
@@ -626,6 +650,7 @@ function initChart() {
   }).observe(wrap);
 
   loadCandles();  // async — fetches real Yahoo Finance data
+  } catch(e) { console.error('initChart failed:', e); }
 }
 
 // ══════════════════════════════════════════════════════
@@ -1491,10 +1516,7 @@ window.setActiveAccount = function(key) {
 
 window.viewPositions = function(key) {
   _posAccId = key;
-  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("on"));
-  document.querySelectorAll("[id^=\"pane-\"]").forEach(p=>p.style.display="none");
-  document.getElementById("pane-positions").style.display = "block";
-  document.querySelector(".tab-btn[onclick*=\"positions\"]")?.classList.add("on");
+  showTab('positions');
   refreshPositionsDisplay();
 };
 
@@ -1631,7 +1653,7 @@ window.onClusterSelect = function(silent) {
 window.onNodeSelect = function(silent) {
   const cid=document.getElementById("acCluster")?.value;
   const nidx=document.getElementById("acNode")?.value;
-  if(!cid||nidx====""||nidx===undefined)return;
+  if(!cid||nidx===""||nidx===undefined)return;
   const node=(_fbClusters[cid]?.nodes||[])[parseInt(nidx)]; if(!node)return;
   const btype=node.brokerType||"mt5"; setBTab(btype);
   if(btype==="mt5"){
@@ -1651,13 +1673,31 @@ window.onNodeSelect = function(silent) {
 
 
 // ── BOOT ──
-initChart();
-loadSaved();
-loadClusterDropdown();
-checkSession();
-updateClock();
-setInterval(updateClock, 1000);
-setInterval(checkSession, 30000);
+function _boot() {
+  try { initChart(); } catch(e) { console.error('initChart error:', e); }
+  try { loadSaved(); } catch(e) { console.error('loadSaved error:', e); }
+  try { loadClusterDropdown(); } catch(e) { console.error('loadClusterDropdown error:', e); }
+  try { checkSession(); } catch(e) { console.error('checkSession error:', e); }
+  try { updateClock(); } catch(e) {}
+  setInterval(() => { try { updateClock(); } catch(e){} }, 1000);
+  setInterval(() => { try { checkSession(); } catch(e){} }, 30000);
+}
+
+// ── GLOBAL ERROR HANDLER ──
+window.addEventListener('error', e => {
+  console.error('ISI Algo Error:', e.message, e.filename, e.lineno);
+  const t = document.getElementById('toast');
+  if (t) { t.textContent = '⚠ JS Error: ' + e.message; t.className = 'toast show'; setTimeout(()=>t.className='toast',5000); }
+});
+window.addEventListener('unhandledrejection', e => {
+  console.error('Unhandled promise:', e.reason);
+});
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', _boot);
+} else {
+  _boot();
+}
 </script>
 <script type="module" src="order-tracker.js"></script>
 </body>
