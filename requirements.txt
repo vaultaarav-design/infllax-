@@ -1,0 +1,10 @@
+# ISI Algo Engine — Python Requirements
+# Install: pip install -r requirements.txt
+
+MetaTrader5>=5.0.45       # MT5 data + execution (Windows only)
+firebase-admin>=6.2.0     # Firebase Realtime DB push
+pandas>=2.0.0             # Candle data processing
+numpy>=1.24.0             # Numerical calculations
+requests>=2.31.0          # Custom broker REST API
+websocket-client>=1.6.0   # WebSocket for live tick data
+pytz>=2023.3              # Timezone handling

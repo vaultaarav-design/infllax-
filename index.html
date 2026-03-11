@@ -362,7 +362,7 @@
         <button class="btn-monitoring" onclick="location.href='monitoring.html'">📊 MONITORING</button>
         <button class="btn-setup" onclick="location.href='Settings.html'">⚙ SETUP</button>
     </div>
-</header>
+<div style="position:fixed;bottom:16px;right:16px;z-index:9000;"><a href="algo.html" style="background:#0a0d08;border:1.5px solid #00c805;color:#00c805;padding:8px 16px;border-radius:4px;font-size:0.62rem;font-weight:bold;letter-spacing:1px;text-decoration:none;box-shadow:0 0 10px rgba(0,200,5,0.2);">⚡ ALGO</a></div></header>
 
 <!-- ===== SELECTED INFO BAR ===== -->
 <div id="selectedInfoBar" class="sel-info-bar">
@@ -602,6 +602,12 @@
                         <div id="ocScore" style="font-size:0.78rem;font-weight:900;color:var(--accent);font-family:monospace;">—</div>
                     </div>
                 </div>
+
+                <!-- BROKER STATUS ROW -->
+                <div id="ocBrokerStatus" style="margin-top:8px;padding:7px 10px;border-radius:5px;background:rgba(0,0,0,0.4);border:1px solid #111;display:flex;justify-content:space-between;align-items:center;">
+                    <div style="font-size:0.52rem;color:#333;letter-spacing:1px;">BROKER / EXECUTION</div>
+                    <div id="ocBrokerStatusVal" style="font-size:0.62rem;font-weight:bold;color:#333;">— Not configured</div>
+                </div>
             </div>
         </div>
 
@@ -771,5 +777,6 @@
 </div>
 
 <script type="module" src="index.js"></script>
+<script type="module" src="order-tracker.js"></script>
 </body>
 </html>

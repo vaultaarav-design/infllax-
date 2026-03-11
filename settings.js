@@ -1190,43 +1190,7 @@ window.deleteKBEntry = function(key) {
 };
 
 // ── Init ──
-document.addEventListener('DOMContentLoaded', () => {
 
-    // ── SETTINGS LOCK GATE ──
-    // Only permanent keys can unlock Settings. Temp password = blocked.
-    (function checkSettingsAccess() {
-        const overlay  = document.getElementById('settingsLockOverlay');
-        const tempWarn = document.getElementById('settingsTempWarn');
-        const expEl    = document.getElementById('settingsTempExpiry');
-        if (!overlay) return;
-
-        // Check if a temp password is currently active (user might have used it on terminal)
-        const tempData = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
-        const tempActive = tempData && tempData.pass && Date.now() < tempData.expires;
-
-        // Show lock overlay always — settings requires permanent key
-        overlay.style.display = 'flex';
-
-        if (tempActive && tempWarn) {
-            // Show temp pass warning + expiry countdown
-            tempWarn.style.display = 'block';
-            function updateTempExpiry() {
-                const remaining = tempData.expires - Date.now();
-                if (remaining <= 0) {
-                    if (expEl) expEl.textContent = '⏰ Temp password ab expire ho gaya.';
-                    return;
-                }
-                const m = Math.floor(remaining / 60000);
-                const s = Math.floor((remaining % 60000) / 1000);
-                if (expEl) expEl.textContent = `⏱ Temp password expires in: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-            }
-            updateTempExpiry();
-            setInterval(updateTempExpiry, 1000);
-        }
-    })();
-
-    buildAIDropdown();
-});
 
 // ══════════════════════════════════════════════════════════════════
 // CAPITAL TRANSACTION — DEPOSIT / WITHDRAWAL
@@ -1611,12 +1575,48 @@ function refreshTempPassUI() {
     _tempTimerInterval = setInterval(tick, 1000);
 }
 
-// Init on page load
+// ── SINGLE INIT ──
 document.addEventListener('DOMContentLoaded', () => {
+
+    // 1. Settings lock gate — always show, require permanent key
+    (function checkSettingsAccess() {
+        const overlay  = document.getElementById('settingsLockOverlay');
+        const tempWarn = document.getElementById('settingsTempWarn');
+        const expEl    = document.getElementById('settingsTempExpiry');
+        if (!overlay) return;
+
+        const tempData   = JSON.parse(localStorage.getItem('isi_temp_pass') || 'null');
+        const tempActive = tempData && tempData.pass && Date.now() < tempData.expires;
+
+        overlay.style.display = 'flex';
+
+        if (tempActive && tempWarn) {
+            tempWarn.style.display = 'block';
+            function updateTempExpiry() {
+                const remaining = tempData.expires - Date.now();
+                if (remaining <= 0) {
+                    if (expEl) expEl.textContent = '⏰ Temp password ab expire ho gaya.';
+                    return;
+                }
+                const m = Math.floor(remaining / 60000);
+                const s = Math.floor((remaining % 60000) / 1000);
+                if (expEl) expEl.textContent = `⏱ Temp password expires in: ${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+            }
+            updateTempExpiry();
+            setInterval(updateTempExpiry, 1000);
+        }
+    })();
+
+    // 2. AI dropdown
+    buildAIDropdown();
+
+    // 3. Transaction section defaults
     const txDateEl = document.getElementById('txDate');
     if (txDateEl) txDateEl.value = new Date().toISOString().slice(0,10);
     setTxType('DEPOSIT');
-    refreshTempPassUI();      // check for existing temp pass
-    renderPermKeysList();     // render permanent keys list
+
+    // 4. Password manager UI
+    refreshTempPassUI();
+    renderPermKeysList();
 });
 

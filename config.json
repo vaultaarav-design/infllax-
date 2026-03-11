@@ -1,0 +1,57 @@
+{
+  "broker": {
+    "type": "mt5",
+    "mt5": {
+      "login": 0,
+      "password": "",
+      "server": "",
+      "path": ""
+    },
+    "custom_api": {
+      "base_url": "",
+      "api_key": "",
+      "ws_url": "",
+      "auth_header": "Authorization",
+      "auth_prefix": "Bearer"
+    }
+  },
+  "firebase": {
+    "service_account_path": "firebase_service_account.json",
+    "database_url": "https://YOUR-PROJECT.firebaseio.com",
+    "cluster_id": "YOUR_CLUSTER_ID",
+    "node_idx": 0
+  },
+  "watchlist": [
+    {"symbol": "XAUUSD", "type": "commodity"},
+    {"symbol": "EURUSD", "type": "forex"},
+    {"symbol": "GBPUSD", "type": "forex"},
+    {"symbol": "USDJPY", "type": "forex"},
+    {"symbol": "NAS100", "type": "index"},
+    {"symbol": "US30",   "type": "index"},
+    {"symbol": "BTCUSD", "type": "crypto"}
+  ],
+  "analysis": {
+    "htf_timeframe": "H4",
+    "ltf_timeframe": "M15",
+    "exec_timeframe": "M5",
+    "htf_candles": 200,
+    "ltf_candles": 100,
+    "min_signal_score": 65,
+    "scan_interval_sec": 30,
+    "session_filter": true,
+    "sessions": {
+      "london":   {"start": "07:00", "end": "12:00", "tz": "UTC"},
+      "new_york": {"start": "13:00", "end": "17:00", "tz": "UTC"},
+      "asian":    {"start": "00:00", "end": "04:00", "tz": "UTC"}
+    }
+  },
+  "risk": {
+    "risk_pct": 1.0,
+    "min_rr": 2.0,
+    "max_signals_per_day": 3
+  },
+  "execution": {
+    "mode": "signal_only",
+    "semi_auto_timeout_sec": 300
+  }
+}

@@ -933,14 +933,220 @@ function fillOrderCard(pe) {
 
     const rr = pe.rrPlanned || pe.calcRR || '—';
     setText('ocRR',        rr !== '—' ? `1:${rr} R` : '—');
+
+    // ── Show broker connection status ──
+    const algoConfig = JSON.parse(localStorage.getItem('isi_algo_config') || '{}');
+    const brokerConnected = !!(
+        (algoConfig.brokerType === 'mt5' && algoConfig.mt5Login && algoConfig.mt5Server) ||
+        (algoConfig.brokerType === 'api' && algoConfig.apiBase  && algoConfig.apiKey)
+    );
+    const execMode = algoConfig.execMode || 'signal_only';
+
+    const statusEl  = document.getElementById('ocBrokerStatusVal');
+    const statusBox = document.getElementById('ocBrokerStatus');
+    if (statusEl && statusBox) {
+        if (brokerConnected && execMode !== 'signal_only') {
+            statusEl.textContent = `✅ ${algoConfig.brokerType?.toUpperCase()||'MT5'} CONNECTED — ${execMode === 'auto' ? 'AUTO EXECUTE on AUTHORIZE' : 'SEMI-AUTO — approve in Algo page'}`;
+            statusEl.style.color = '#00c805';
+            statusBox.style.borderColor = '#00c805';
+        } else if (brokerConnected && execMode === 'signal_only') {
+            statusEl.textContent = `📡 ${algoConfig.brokerType?.toUpperCase()||'MT5'} connected — Signal Only mode (change in Algo → Settings)`;
+            statusEl.style.color = '#c5a059';
+            statusBox.style.borderColor = '#c5a059';
+        } else {
+            statusEl.textContent = '⚠ Broker not configured — AUTHORIZE karega to Firebase pe save hoga only';
+            statusEl.style.color = '#555';
+            statusBox.style.borderColor = '#222';
+        }
+    }
 }
 
-window.revealSections = function () {
+// ══════════════════════════════════════════════════════════
+//  AUTHORIZE ENTRY — sends pending order to Firebase
+//  Python engine (isi_algo_engine.py) picks it up → MT5/API
+// ══════════════════════════════════════════════════════════
+window.revealSections = async function () {
     if (!selectedClusterId || selectedNodeIdx === null)
         return alert('Select a Cluster and Account first!');
+
+    // ── 1. Read pre-entry plan from localStorage ──
+    const pe = JSON.parse(localStorage.getItem('isi_last_preentry') || 'null');
+    const algoConfig = JSON.parse(localStorage.getItem('isi_algo_config') || '{}');
+
+    // ── 2. Try to send order if broker is configured ──
+    const brokerConnected = !!(
+        (algoConfig.brokerType === 'mt5'  && algoConfig.mt5Login  && algoConfig.mt5Server) ||
+        (algoConfig.brokerType === 'api'  && algoConfig.apiBase   && algoConfig.apiKey)
+    );
+
+    const hasOrderData = pe && pe.entryPrice && pe.stopLoss;
+
+    if (hasOrderData) {
+        const qty      = parseFloat(document.getElementById('riskQty')?.value) || pe.calcQty || null;
+        const asset    = pe.asset || '—';
+        const dir      = pe.direction || 'LONG';
+        const entry    = parseFloat(pe.entryPrice);
+        const sl       = parseFloat(pe.stopLoss);
+        const tp       = parseFloat(pe.targetZone) || null;
+        const riskAmt  = pe.riskAmt  || null;
+        const riskPct  = pe.riskPct  || null;
+        const score    = pe.score    || 0;
+        const bias     = pe.biasResult || '';
+
+        // ── 3. Build order request object ──
+        const orderRequest = {
+            symbol:         asset,
+            direction:      dir,
+            type:           'LIMIT',           // pending order at entry price
+            entry:          entry,
+            sl:             sl,
+            tp:             tp,
+            qty:            qty,
+            riskAmt:        riskAmt,
+            riskPct:        riskPct,
+            score:          score,
+            biasResult:     bias,
+            clusterId:      selectedClusterId,
+            nodeIdx:        selectedNodeIdx,
+            source:         'ISI_TERMINAL_MANUAL',
+            requestedAt:    new Date().toISOString(),
+            status:         'ORDER_PENDING',
+            htf_ms:         pe.htf?.ms     || '',
+            ltf_ms:         pe.ltf?.ms     || '',
+            htf_zone:       pe.htf?.zone   || '',
+            smm:            pe.smm         || [],
+            note:           pe.note        || ''
+        };
+
+        // ── 4. Push to Firebase → Python engine reads + executes ──
+        try {
+            await push(ref(db, `isi_v6/order_requests/${selectedClusterId}/${selectedNodeIdx}`), orderRequest);
+            console.log('✅ Order request pushed to Firebase:', orderRequest);
+            // Refresh order tracker popup
+            if (typeof window._OT_reload === 'function') window._OT_reload();
+            // Auto-open tracker popup to show new order
+            setTimeout(() => {
+                if (typeof window._OT !== 'undefined' && !window._OT._vis) {
+                    window._OT.toggle();
+                }
+            }, 600);
+        } catch(e) {
+            console.warn('Order push error:', e);
+        }
+
+        // ── 5. Show order confirmation UI on the card ──
+        _showOrderConfirmation(orderRequest, brokerConnected);
+    }
+
+    // ── 6. Reveal post-trade sections as before ──
     document.getElementById('postTradeSections').style.display = 'block';
     document.getElementById('postTradeSections').scrollIntoView({ behavior: 'smooth' });
 };
+
+// ── Show order confirmation banner on order card ──
+function _showOrderConfirmation(order, brokerConnected) {
+    const card = document.getElementById('orderCard');
+    if (!card) return;
+
+    // Remove old confirmation if any
+    const old = document.getElementById('ocConfirmBanner');
+    if (old) old.remove();
+
+    const brokerMsg = brokerConnected
+        ? `🤖 Python engine ko signal bheja — MT5/Broker mein pending order lagega`
+        : `⚠ Broker connected nahi — algo.html pe connect karo. Order Firebase pe saved hai.`;
+
+    const dirColor = order.direction === 'LONG' ? '#00c805' : '#ff3b3b';
+    const dirArrow = order.direction === 'LONG' ? '▲' : '▼';
+
+    const banner = document.createElement('div');
+    banner.id = 'ocConfirmBanner';
+    banner.style.cssText = `
+        margin-top: 10px;
+        background: linear-gradient(135deg, #020d02, #010810);
+        border: 1.5px solid ${brokerConnected ? '#00c805' : '#c5a059'};
+        border-radius: 7px;
+        padding: 10px 14px;
+        animation: orderCardPulse 2s ease-in-out infinite;
+    `;
+    banner.innerHTML = `
+        <div style="font-size:0.58rem;color:#4a9eff;letter-spacing:3px;font-weight:bold;margin-bottom:6px;">
+            ⚡ ORDER AUTHORIZED ${brokerConnected ? '— SENDING TO BROKER' : '— SAVED TO FIREBASE'}
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:7px;">
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;text-align:center;">
+                <div style="font-size:0.45rem;color:#333;letter-spacing:1px;margin-bottom:2px;">ASSET</div>
+                <div style="font-size:0.72rem;font-weight:900;color:#fff;font-family:monospace;">${order.symbol}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;text-align:center;">
+                <div style="font-size:0.45rem;color:#333;letter-spacing:1px;margin-bottom:2px;">DIR</div>
+                <div style="font-size:0.72rem;font-weight:900;color:${dirColor};font-family:monospace;">${dirArrow} ${order.direction}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;text-align:center;">
+                <div style="font-size:0.45rem;color:#333;letter-spacing:1px;margin-bottom:2px;">ENTRY</div>
+                <div style="font-size:0.72rem;font-weight:900;color:#c5a059;font-family:monospace;">${order.entry||'—'}</div>
+            </div>
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;text-align:center;">
+                <div style="font-size:0.45rem;color:#333;letter-spacing:1px;margin-bottom:2px;">QTY</div>
+                <div style="font-size:0.72rem;font-weight:900;color:#c5a059;font-family:monospace;">${order.qty||'—'}</div>
+            </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-bottom:7px;">
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;display:flex;justify-content:space-between;">
+                <span style="font-size:0.48rem;color:#333;">STOP LOSS</span>
+                <span style="font-size:0.65rem;font-weight:bold;color:#ff5555;font-family:monospace;">${order.sl||'—'}</span>
+            </div>
+            <div style="background:rgba(0,0,0,0.5);border:1px solid #111;border-radius:4px;padding:5px;display:flex;justify-content:space-between;">
+                <span style="font-size:0.48rem;color:#333;">TAKE PROFIT</span>
+                <span style="font-size:0.65rem;font-weight:bold;color:#55ff88;font-family:monospace;">${order.tp||'—'}</span>
+            </div>
+        </div>
+        <div style="font-size:0.6rem;color:${brokerConnected?'#00c805':'#c5a059'};line-height:1.5;">
+            ${brokerMsg}
+        </div>
+        <div style="font-size:0.52rem;color:#333;margin-top:4px;">
+            Status: <span id="ocOrderStatus" style="color:#c5a059;">PENDING — waiting for broker confirmation</span>
+        </div>
+    `;
+    card.appendChild(banner);
+
+    // ── Poll Firebase for status update ──
+    _pollOrderStatus(order.requestedAt);
+}
+
+// ── Poll Firebase for order execution status ──
+function _pollOrderStatus(requestedAt) {
+    if (!selectedClusterId || selectedNodeIdx === null) return;
+    const statusEl = document.getElementById('ocOrderStatus');
+    if (!statusEl) return;
+
+    let polls = 0;
+    const interval = setInterval(async () => {
+        polls++;
+        if (polls > 60) { clearInterval(interval); return; } // stop after 5 min
+        try {
+            const snap = await get(ref(db, `isi_v6/order_requests/${selectedClusterId}/${selectedNodeIdx}`));
+            const data = snap.val();
+            if (!data) return;
+            // Find our order by requestedAt
+            const entry = Object.values(data).find(o => o.requestedAt === requestedAt);
+            if (!entry) return;
+            if (entry.status === 'EXECUTED') {
+                statusEl.textContent = `✅ EXECUTED — Order ID: ${entry.order_id || 'confirmed'} @ ${entry.exec_price || entry.entry}`;
+                statusEl.style.color = '#00c805';
+                clearInterval(interval);
+            } else if (entry.status === 'FAILED') {
+                statusEl.textContent = `❌ FAILED — ${entry.error || 'Broker rejected'}`;
+                statusEl.style.color = '#ff3b3b';
+                clearInterval(interval);
+            } else if (entry.status === 'REJECTED') {
+                statusEl.textContent = '❌ REJECTED by Python engine';
+                statusEl.style.color = '#ff3b3b';
+                clearInterval(interval);
+            }
+        } catch(e) {}
+    }, 5000); // check every 5 seconds
+}
 
 window.addVio = function () {
     const v = document.getElementById('vSelect').value;
@@ -1674,16 +1880,13 @@ function _unlockTerminal() {
 // DOM READY
 // ──────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-    // Oath — show only once per day
-    const today     = new Date().toISOString().split('T')[0];
-    const oathDone  = localStorage.getItem('isi_oath_date');
-    const popup     = document.getElementById('oathPopup');
-    const d         = document.getElementById('oathDisplay');
+    const today = new Date().toISOString().split('T')[0];
+    const popup = document.getElementById('oathPopup');
+    const d     = document.getElementById('oathDisplay');
 
     // Password gate: Always show on load — hide only after correct password
     if (d) d.innerText = oaths[Math.floor(Math.random() * oaths.length)];
     if (popup) popup.style.display = 'flex';
-    // Auto-clear wrong password error + focus input
     const pi = document.getElementById('oathPassInput');
     if (pi) { pi.value = ''; setTimeout(() => pi.focus(), 300); }
 
