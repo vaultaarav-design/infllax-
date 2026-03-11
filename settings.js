@@ -181,6 +181,9 @@ window.buildNodeUI = function(existingNodes = null, forceQty = null) {
             </div>`;
         });
 
+        // Broker type toggle id
+        const btId = `brokerType_${i}`;
+        const bType = ex.brokerType || 'mt5';
         grid.innerHTML += `
         <div class="node-setup-card">
             <div class="input-row">
@@ -197,6 +200,87 @@ window.buildNodeUI = function(existingNodes = null, forceQty = null) {
                     <input type="number" class="node-order" value="${ex.order ?? (i+1)}" style="width:50px;padding:4px;background:#000;border:1px solid #333;color:#fff;">
                 </div>
             </div>
+
+            <!-- ── BROKER CREDENTIALS (per account) ── -->
+            <div style="background:#050505;border:1px solid #1a1a1a;border-radius:5px;padding:10px;margin-bottom:10px;">
+                <div style="font-size:0.55rem;color:#c5a059;letter-spacing:2px;font-weight:bold;margin-bottom:8px;">🔌 BROKER CREDENTIALS (is account ke liye)</div>
+                <div style="display:flex;gap:6px;margin-bottom:8px;">
+                    <button type="button" class="node-broker-tab ${bType==='mt5'?'bta-on':''}" data-btype="mt5" data-nodeidx="${i}"
+                        onclick="toggleNodeBrokerTab(this,'mt5',${i})"
+                        style="padding:5px 12px;font-size:0.6rem;font-weight:bold;cursor:pointer;border-radius:3px;border:1px solid ${bType==='mt5'?'#c5a059':'#222'};background:${bType==='mt5'?'#0a0800':'#080808'};color:${bType==='mt5'?'#c5a059':'#444'};">
+                        📊 MT5
+                    </button>
+                    <button type="button" class="node-broker-tab ${bType==='api'?'bta-on':''}" data-btype="api" data-nodeidx="${i}"
+                        onclick="toggleNodeBrokerTab(this,'api',${i})"
+                        style="padding:5px 12px;font-size:0.6rem;font-weight:bold;cursor:pointer;border-radius:3px;border:1px solid ${bType==='api'?'#4a9eff':'#222'};background:${bType==='api'?'#010a1a':'#080808'};color:${bType==='api'?'#4a9eff':'#444'};">
+                        🌐 CUSTOM API
+                    </button>
+                    <span class="node-broker-type" data-node="${i}" style="display:none;">${bType}</span>
+                </div>
+
+                <!-- MT5 FIELDS -->
+                <div class="node-mt5-fields" data-node="${i}" style="display:${bType==='mt5'?'block':'none'}">
+                    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:6px;">
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">MT5 LOGIN</div>
+                            <input class="node-mt5-login" type="number" placeholder="12345678"
+                                value="${ex.mt5Login||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">PASSWORD</div>
+                            <input class="node-mt5-pass" type="password" placeholder="••••••"
+                                value="${ex.mt5Pass||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">SERVER</div>
+                            <input class="node-mt5-server" placeholder="ICMarkets-Demo02"
+                                value="${ex.mt5Server||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">MT5 PATH (optional)</div>
+                        <input class="node-mt5-path" placeholder="C:\\Program Files\\MetaTrader 5\\terminal64.exe"
+                            value="${ex.mt5Path||''}"
+                            style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                    </div>
+                </div>
+
+                <!-- API FIELDS -->
+                <div class="node-api-fields" data-node="${i}" style="display:${bType==='api'?'block':'none'}">
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:6px;">
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">BASE URL</div>
+                            <input class="node-api-url" placeholder="https://api.broker.com/v1"
+                                value="${ex.apiBaseUrl||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">API KEY</div>
+                            <input class="node-api-key" type="password" placeholder="Your API key"
+                                value="${ex.apiKey||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">AUTH HEADER</div>
+                            <input class="node-api-header" value="${ex.apiAuthHeader||'Authorization'}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                        <div>
+                            <div style="font-size:0.5rem;color:#444;margin-bottom:2px;">WS URL (optional)</div>
+                            <input class="node-api-ws" placeholder="wss://stream.broker.com/ws"
+                                value="${ex.apiWsUrl||''}"
+                                style="width:100%;background:#080808;border:1px solid #1a1a1a;color:#ccc;padding:6px 8px;border-radius:3px;font-size:0.7rem;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- ── END BROKER CREDENTIALS ── -->
+
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">${dayHtml}</div>
         </div>`;
     }
@@ -222,6 +306,26 @@ window.toggleDaySlots = function(cb) {
 // HELPER — collect timeSlots from a node card
 // Returns: { MON: [{start,end,expire,risk,qtyFrom,qtyTo},...], ... }
 // ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+// BROKER TAB TOGGLE (per node card)
+// ─────────────────────────────────────────────────────────
+window.toggleNodeBrokerTab = function(btn, type, nodeIdx) {
+    const card = btn.closest('.node-setup-card');
+    // Update hidden type field
+    card.querySelector(`.node-broker-type[data-node="${nodeIdx}"]`).textContent = type;
+    // Toggle field visibility
+    card.querySelector(`.node-mt5-fields[data-node="${nodeIdx}"]`).style.display = type==='mt5' ? 'block' : 'none';
+    card.querySelector(`.node-api-fields[data-node="${nodeIdx}"]`).style.display  = type==='api' ? 'block' : 'none';
+    // Update button styles
+    card.querySelectorAll('.node-broker-tab').forEach(b => {
+        const bt = b.dataset.btype;
+        const isOn = bt === type;
+        b.style.border     = isOn ? (bt==='mt5'?'1px solid #c5a059':'1px solid #4a9eff') : '1px solid #222';
+        b.style.background = isOn ? (bt==='mt5'?'#0a0800':'#010a1a') : '#080808';
+        b.style.color      = isOn ? (bt==='mt5'?'#c5a059':'#4a9eff') : '#444';
+    });
+};
+
 function collectNodeTimeSlots(card, nodeIdx) {
     const result = {};
     days.forEach(day => {
@@ -298,11 +402,21 @@ document.getElementById('btnDeploy').onclick = async () => {
 
                 // Update only config — NOT stats, NOT tradeHistory, NOT equityPoints
                 await update(ref(db, `isi_v6/clusters/${editingClusterId}/nodes/${i}`), {
-                    title:      card.querySelector('.node-title').value,
-                    curr:       card.querySelector('.node-curr').value,
-                    balance:    newSetupBalance,
+                    title:         card.querySelector('.node-title').value,
+                    curr:          card.querySelector('.node-curr').value,
+                    balance:       newSetupBalance,
                     timeSlots,
-                    order:      parseInt(card.querySelector('.node-order').value),
+                    order:         parseInt(card.querySelector('.node-order').value),
+                    // Broker credentials
+                    brokerType:    card.querySelector(`.node-broker-type[data-node="${i}"]`)?.textContent?.trim() || 'mt5',
+                    mt5Login:      card.querySelector('.node-mt5-login')?.value  || '',
+                    mt5Pass:       card.querySelector('.node-mt5-pass')?.value   || '',
+                    mt5Server:     card.querySelector('.node-mt5-server')?.value || '',
+                    mt5Path:       card.querySelector('.node-mt5-path')?.value   || '',
+                    apiBaseUrl:    card.querySelector('.node-api-url')?.value    || '',
+                    apiKey:        card.querySelector('.node-api-key')?.value    || '',
+                    apiAuthHeader: card.querySelector('.node-api-header')?.value || 'Authorization',
+                    apiWsUrl:      card.querySelector('.node-api-ws')?.value     || '',
                 });
 
                 // Only reset stats.currentBal if NO trades yet
@@ -325,11 +439,21 @@ document.getElementById('btnDeploy').onclick = async () => {
                 const timeSlots = collectNodeTimeSlots(card, i);
                 const b = parseFloat(card.querySelector('.node-balance').value);
                 cluster.nodes.push({
-                    title:     card.querySelector('.node-title').value,
-                    curr:      card.querySelector('.node-curr').value,
-                    balance:   b,
+                    title:         card.querySelector('.node-title').value,
+                    curr:          card.querySelector('.node-curr').value,
+                    balance:       b,
                     timeSlots,
-                    order:     parseInt(card.querySelector('.node-order').value),
+                    order:         parseInt(card.querySelector('.node-order').value),
+                    // Broker credentials
+                    brokerType:    card.querySelector(`.node-broker-type[data-node="${i}"]`)?.textContent?.trim() || 'mt5',
+                    mt5Login:      card.querySelector('.node-mt5-login')?.value  || '',
+                    mt5Pass:       card.querySelector('.node-mt5-pass')?.value   || '',
+                    mt5Server:     card.querySelector('.node-mt5-server')?.value || '',
+                    mt5Path:       card.querySelector('.node-mt5-path')?.value   || '',
+                    apiBaseUrl:    card.querySelector('.node-api-url')?.value    || '',
+                    apiKey:        card.querySelector('.node-api-key')?.value    || '',
+                    apiAuthHeader: card.querySelector('.node-api-header')?.value || 'Authorization',
+                    apiWsUrl:      card.querySelector('.node-api-ws')?.value     || '',
                 });
             });
             await set(ref(db, `isi_v6/clusters/${clusterId}`), cluster);

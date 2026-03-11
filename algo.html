@@ -284,6 +284,14 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
           </select>
         </div>
 
+        <!-- Account selector for order routing -->
+        <div class="f">
+          <div class="fl">SEND ORDER TO ACCOUNT</div>
+          <select class="fi" id="oAccount" style="border-color:#c5a059;">
+            <option value="">— Select account —</option>
+          </select>
+        </div>
+
         <div class="f" id="limitRow" style="display:none;">
           <div class="fl">LIMIT / STOP PRICE</div>
           <input class="fi" id="limitPrice" type="number" placeholder="0.00000" step="0.00001">
@@ -338,13 +346,33 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
 
       <!-- ══ POSITIONS TAB ══ -->
       <div id="pane-positions" style="display:none;">
-        <div class="sec green">ACCOUNT INFO</div>
-        <div class="acc-box">
+
+        <!-- Account Selector for positions -->
+        <div style="display:flex;gap:6px;align-items:center;margin-bottom:8px;flex-wrap:wrap;" id="posAccTabs">
+          <span style="font-size:0.52rem;color:#333;letter-spacing:1px;">VIEW:</span>
+          <!-- tabs populated by JS -->
+        </div>
+
+        <!-- Account Info Card -->
+        <div class="sec green" style="display:flex;justify-content:space-between;align-items:center;">
+          <span id="posAccTitle">ACCOUNT INFO</span>
+          <span id="posAccBroker" style="font-size:0.52rem;color:#333;"></span>
+        </div>
+        <div class="acc-box" id="posAccBox">
           <div class="acc-r"><span class="acc-l">BALANCE</span><span class="acc-v" id="accBal">—</span></div>
           <div class="acc-r"><span class="acc-l">EQUITY</span><span class="acc-v" id="accEq">—</span></div>
           <div class="acc-r"><span class="acc-l">FREE MARGIN</span><span class="acc-v" id="accFM">—</span></div>
           <div class="acc-r"><span class="acc-l">FLOATING P&L</span><span class="acc-v" id="accFL">—</span></div>
-          <div class="acc-r"><span class="acc-l">BROKER / SERVER</span><span class="acc-v" id="accBrk" style="font-size:0.58rem;">—</span></div>
+          <div class="acc-r"><span class="acc-l">TODAY TRADES</span><span class="acc-v" id="accTrd">—</span></div>
+          <div class="acc-r"><span class="acc-l">WIN RATE</span><span class="acc-v" id="accWR">—</span></div>
+          <div class="acc-r"><span class="acc-l">NET P&L</span><span class="acc-v" id="accNet">—</span></div>
+          <div class="acc-r"><span class="acc-l">BROKER TYPE</span><span class="acc-v" id="accBrk" style="font-size:0.58rem;">—</span></div>
+        </div>
+
+        <!-- All Accounts Summary Row -->
+        <div id="allAccSummary" style="display:none;background:#030303;border:1px solid #0d0d0d;border-radius:5px;padding:8px;margin-bottom:8px;">
+          <div style="font-size:0.48rem;color:#2a2a2a;letter-spacing:2px;margin-bottom:6px;">ALL ACCOUNTS COMBINED</div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;" id="allAccGrid"></div>
         </div>
 
         <div class="sec green">OPEN POSITIONS</div>
@@ -361,75 +389,96 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
       <!-- ══ CONNECT TAB ══ -->
       <div id="pane-connect" style="display:none;">
 
-        <!-- TradingView Section -->
-        <div class="sec blue">TRADINGVIEW CONNECT</div>
-        <div class="tv-box">
-          <div style="font-size:0.6rem;color:var(--blue);font-weight:bold;margin-bottom:4px;">📊 TradingView → Webhook → ISI Algo</div>
-          <div class="tv-steps">
-            <b>Step 1:</b> TradingView pe chart kholo<br>
-            <b>Step 2:</b> Indicator/Pine Script strategy add karo<br>
-            <b>Step 3:</b> Alert banao → "Webhook URL" mein paste karo:<br>
-            <code id="whuDisp">https://your-firebase-fn-url/signal</code><br>
-            <b>Step 4:</b> Alert message JSON format mein:<br>
-            <code>{"symbol":"{{ticker}}","dir":"LONG","entry":{{close}},"sl":{{low}},"tp":0}</code><br>
-            <b>Step 5:</b> ISI Terminal pe signal live aayega
-          </div>
-          <div class="f" style="margin-top:7px;">
-            <div class="fl">FIREBASE FUNCTION URL (ya Custom Webhook)</div>
-            <input class="fi" id="webhookUrl" placeholder="https://us-central1-project.cloudfunctions.net/receiveSignal"
-              oninput="document.getElementById('whuDisp').textContent=this.value||'https://your-firebase-fn-url/signal'">
-          </div>
-          <button class="btn btn-blue" onclick="saveTVCfg()" style="margin-top:4px;">💾 SAVE WEBHOOK</button>
+        <!-- ALL CONNECTED ACCOUNTS — Live Cards -->
+        <div class="sec blue" style="display:flex;align-items:center;justify-content:space-between;">
+          <span>🔌 BROKER ACCOUNTS</span>
+          <button onclick="refreshAccountCards()" style="background:transparent;border:1px solid #1a1a2a;color:#4a9eff;padding:2px 8px;border-radius:3px;cursor:pointer;font-size:0.55rem;">↻ REFRESH</button>
         </div>
 
-        <!-- Broker Section -->
-        <div class="sec blue">BROKER CONNECTION</div>
-        <div class="btabs">
-          <div class="btab on" id="bt-mt5" onclick="setBTab('mt5')">📊 MT5</div>
-          <div class="btab"    id="bt-api" onclick="setBTab('api')">🌐 CUSTOM API</div>
-        </div>
-
-        <div id="bf-mt5">
-          <div class="fr3">
-            <div class="f"><div class="fl">LOGIN</div><input class="fi" id="mt5Login" type="number" placeholder="12345678"></div>
-            <div class="f"><div class="fl">PASSWORD</div><input class="fi" id="mt5Pass" type="password" placeholder="••••"></div>
-            <div class="f"><div class="fl">SERVER</div><input class="fi" id="mt5Server" placeholder="ICM-Demo"></div>
-          </div>
-          <div class="f">
-            <div class="fl">MT5 PATH (optional)</div>
-            <input class="fi" id="mt5Path" placeholder="C:\Program Files\MetaTrader 5\terminal64.exe">
-          </div>
-          <div style="background:#030308;border:1px solid #0d0d0d;border-radius:3px;padding:7px;margin-bottom:7px;font-size:0.55rem;color:#444;line-height:1.7;">
-            ⚠ MT5 terminal OPEN + logged in hona chahiye PC pe<br>
-            Python script same machine pe run karo<br>
-            Tools → Options → EA → Allow Algorithmic Trading ✓
+        <!-- Account Cards Grid — auto-populated from Firebase clusters -->
+        <div id="acCardsGrid" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;">
+          <div style="color:#1a1a1a;font-size:0.6rem;text-align:center;padding:12px;">
+            Loading accounts from Settings clusters...
           </div>
         </div>
 
-        <div id="bf-api" style="display:none;">
-          <div class="f"><div class="fl">BASE URL</div><input class="fi" id="apiBase" placeholder="https://api.broker.com/v1"></div>
-          <div class="f"><div class="fl">API KEY</div><input class="fi" id="apiKey" type="password" placeholder="Your API key"></div>
-          <div class="fr">
-            <div class="f"><div class="fl">AUTH HEADER</div><input class="fi" id="apiHeader" value="Authorization"></div>
-            <div class="f"><div class="fl">PREFIX</div><input class="fi" id="apiPrefix" value="Bearer"></div>
+        <!-- Add / Edit Account -->
+        <details id="addAccDetails" style="margin-bottom:8px;">
+          <summary style="font-size:0.55rem;color:#c5a059;cursor:pointer;letter-spacing:1px;padding:6px 0;border-bottom:1px solid #111;">
+            ＋ ADD / EDIT ACCOUNT CREDENTIALS
+          </summary>
+          <div style="margin-top:8px;">
+
+            <div class="fr" style="margin-bottom:8px;">
+              <div class="f">
+                <div class="fl">CLUSTER</div>
+                <select class="fi" id="acCluster" onchange="onClusterSelect()">
+                  <option value="">— Loading... —</option>
+                </select>
+              </div>
+              <div class="f">
+                <div class="fl">ACCOUNT (Node)</div>
+                <select class="fi" id="acNode" onchange="onNodeSelect()">
+                  <option value="">— Select cluster —</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="btabs">
+              <div class="btab on" id="bt-mt5" onclick="setBTab('mt5')">📊 MT5</div>
+              <div class="btab"    id="bt-api" onclick="setBTab('api')">🌐 CUSTOM API</div>
+            </div>
+            <div id="bf-mt5">
+              <div class="fr3">
+                <div class="f"><div class="fl">LOGIN</div><input class="fi" id="mt5Login" type="number" placeholder="12345678"></div>
+                <div class="f"><div class="fl">PASSWORD</div><input class="fi" id="mt5Pass" type="password" placeholder="••••"></div>
+                <div class="f"><div class="fl">SERVER</div><input class="fi" id="mt5Server" placeholder="ICM-Demo"></div>
+              </div>
+              <div class="f">
+                <div class="fl">MT5 PATH (optional)</div>
+                <input class="fi" id="mt5Path" placeholder="C:\Program Files\MetaTrader 5\terminal64.exe">
+              </div>
+            </div>
+            <div id="bf-api" style="display:none;">
+              <div class="f"><div class="fl">BASE URL</div><input class="fi" id="apiBase" placeholder="https://api.broker.com/v1"></div>
+              <div class="f"><div class="fl">API KEY</div><input class="fi" id="apiKey" type="password" placeholder="Your API key"></div>
+              <div class="fr">
+                <div class="f"><div class="fl">AUTH HEADER</div><input class="fi" id="apiHeader" value="Authorization"></div>
+                <div class="f"><div class="fl">PREFIX</div><input class="fi" id="apiPrefix" value="Bearer"></div>
+              </div>
+              <div class="f"><div class="fl">WEBSOCKET URL</div><input class="fi" id="apiWs" placeholder="wss://stream.broker.com/ws"></div>
+            </div>
+
+            <button class="btn btn-gold" onclick="saveAllCfg()" style="margin-top:6px;">💾 SAVE TO THIS ACCOUNT</button>
+            <div id="cfgStatus" style="font-size:0.58rem;margin-top:5px;color:#444;"></div>
           </div>
-          <div class="f"><div class="fl">WEBSOCKET URL</div><input class="fi" id="apiWs" placeholder="wss://stream.broker.com/ws"></div>
-          <div style="font-size:0.55rem;color:#333;margin-bottom:7px;line-height:1.7;">
-            Supported: LMAX · IB TWS · Dukascopy · Alpaca · OANDA v20 · Binance
-          </div>
-        </div>
+        </details>
 
         <!-- Firebase -->
         <div class="sec purple">FIREBASE CONFIG</div>
         <div class="f"><div class="fl">DATABASE URL</div><input class="fi" id="fbUrl" placeholder="https://your-project.firebaseio.com"></div>
-        <div class="f"><div class="fl">CLUSTER ID (Settings → Clusters se copy karo)</div><input class="fi" id="fbCid" placeholder="Firebase cluster key"></div>
-
-        <button class="btn btn-gold" onclick="saveAllCfg()">💾 SAVE ALL CONFIG</button>
-        <div id="cfgStatus" style="font-size:0.58rem;margin-top:5px;color:#444;"></div>
+        <div class="f" style="display:none;"><div class="fl">CLUSTER ID</div><input class="fi" id="fbCid"></div>
 
         <div style="margin-top:8px;padding-top:7px;border-top:1px solid #0d0d0d;">
-          <button class="btn btn-blue" onclick="dlConfig()">⬇ DOWNLOAD config.json FOR PYTHON ENGINE</button>
+          <button class="btn btn-blue" onclick="dlConfig()">⬇ DOWNLOAD config.json (active account)</button>
         </div>
+
+        <!-- TradingView Webhook -->
+        <div class="sec blue" style="margin-top:8px;">TRADINGVIEW WEBHOOK</div>
+        <div class="tv-box">
+          <div style="font-size:0.6rem;color:var(--blue);font-weight:bold;margin-bottom:4px;">📊 TradingView → Webhook → ISI Algo</div>
+          <div class="tv-steps" style="font-size:0.55rem;color:#444;line-height:1.8;">
+            Alert → Webhook URL paste karo:<br>
+            <code id="whuDisp" style="color:#c5a059;font-size:0.58rem;">https://your-firebase-fn-url/signal</code>
+          </div>
+          <div class="f" style="margin-top:7px;">
+            <div class="fl">WEBHOOK URL</div>
+            <input class="fi" id="webhookUrl" placeholder="https://us-central1-project.cloudfunctions.net/receiveSignal"
+              oninput="document.getElementById('whuDisp').textContent=this.value||'https://your-firebase-fn-url/signal'">
+          </div>
+          <button class="btn btn-blue" onclick="saveTVCfg()" style="margin-top:4px;">💾 SAVE</button>
+        </div>
+
       </div>
 
       <!-- ══ SETTINGS TAB ══ -->
@@ -523,7 +572,7 @@ let currentSym = 'XAUUSD', currentTF = '15';
 let orderDir = 'BUY', orderType = 'MARKET';
 let layers = { sig:true, ob:true, fvg:true, liq:true };
 let sigSeriesList = [];
-let lastPrice = 2320;
+let lastPrice = 3280;  // Updated — real price fetched on load
 let lastSignals = [];
 let algoConfig = JSON.parse(localStorage.getItem('isi_algo_config') || '{}');
 
@@ -576,40 +625,197 @@ function initChart() {
     if (chart) chart.resize(wrap.clientWidth, wrap.clientHeight);
   }).observe(wrap);
 
-  loadCandles();
+  loadCandles();  // async — fetches real Yahoo Finance data
 }
 
-function loadCandles() {
-  const n = 200;
-  let p = currentSym.includes('XAU') ? 2320 :
-          currentSym.includes('JPY') ? 150.5 :
-          currentSym.includes('NAS') ? 18200 :
-          currentSym.includes('US30') ? 39500 :
-          currentSym.includes('BTC') ? 67000 : 1.0850;
-  lastPrice = p;
-  const now = Math.floor(Date.now()/1000);
-  const iv  = parseInt(currentTF) * 60;
+// ══════════════════════════════════════════════════════
+// REAL PRICE DATA — Yahoo Finance (no API key needed)
+// ══════════════════════════════════════════════════════
+
+// Symbol map: our name → Yahoo Finance ticker
+const YF_SYM = {
+  'XAUUSD':  'GC=F',       // Gold Futures
+  'XAGUSD':  'SI=F',       // Silver Futures
+  'EURUSD':  'EURUSD=X',
+  'GBPUSD':  'GBPUSD=X',
+  'USDJPY':  'JPY=X',
+  'GBPJPY':  'GBPJPY=X',
+  'AUDUSD':  'AUDUSD=X',
+  'USDCAD':  'CAD=X',
+  'USDCHF':  'CHF=X',
+  'NAS100':  'NQ=F',       // Nasdaq Futures
+  'US30':    'YM=F',       // Dow Futures
+  'US500':   'ES=F',       // S&P Futures
+  'BTCUSD':  'BTC-USD',
+  'ETHUSD':  'ETH-USD',
+  'CRUDE':   'CL=F',       // Crude Oil
+};
+
+// TF map: our tf string → Yahoo interval/range
+const YF_TF = {
+  '1':    { interval:'1m',  range:'1d'  },
+  '5':    { interval:'5m',  range:'5d'  },
+  '15':   { interval:'15m', range:'5d'  },
+  '60':   { interval:'60m', range:'1mo' },
+  '240':  { interval:'60m', range:'3mo' },  // Yahoo max 60m for intraday
+  '1440': { interval:'1d',  range:'1y'  },
+};
+
+// Decimal places per symbol
+function getDp(sym) {
+  if (sym.includes('JPY')) return 3;
+  if (['BTC','ETH'].some(s=>sym.includes(s))) return 1;
+  if (['NAS','US30','US500','XAU','XAG','CRUDE','NQ','YM','ES','GC','SI','CL'].some(s=>sym.includes(s))) return 2;
+  return 5;
+}
+
+// Fetch OHLCV from Yahoo Finance
+async function fetchYFCandles(sym, tf) {
+  const ticker = YF_SYM[sym] || (sym + '=X');
+  const { interval, range } = YF_TF[tf] || { interval:'15m', range:'5d' };
+  const proxy = 'https://query1.finance.yahoo.com/v8/finance/chart/';
+  const url   = `${proxy}${encodeURIComponent(ticker)}?interval=${interval}&range=${range}&includePrePost=false`;
+
+  // Use a CORS proxy since Yahoo blocks direct browser calls sometimes
+  const corsProxies = [
+    `https://corsproxy.io/?${encodeURIComponent(url)}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  ];
+
+  for (const endpoint of corsProxies) {
+    try {
+      const res = await fetch(endpoint, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const result = json?.chart?.result?.[0];
+      if (!result) continue;
+
+      const ts     = result.timestamp || [];
+      const q      = result.indicators?.quote?.[0] || {};
+      const opens  = q.open  || [];
+      const highs  = q.high  || [];
+      const lows   = q.low   || [];
+      const closes = q.close || [];
+
+      const data = [];
+      for (let i = 0; i < ts.length; i++) {
+        if (!closes[i] || !opens[i]) continue;
+        data.push({
+          time:  ts[i],
+          open:  +opens[i].toFixed(5),
+          high:  +highs[i].toFixed(5),
+          low:   +lows[i].toFixed(5),
+          close: +closes[i].toFixed(5),
+        });
+      }
+      if (data.length > 5) return data;
+    } catch(e) { console.warn('YF fetch attempt failed:', e.message); }
+  }
+  return null;  // all proxies failed
+}
+
+// Fallback: realistic random walk from current real price
+async function fetchFallbackPrice(sym) {
+  // Try to get just the last price from Yahoo
+  const ticker = YF_SYM[sym] || (sym + '=X');
+  try {
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1m&range=1d`;
+    const proxy = `https://corsproxy.io/?${encodeURIComponent(url)}`;
+    const res  = await fetch(proxy, { signal: AbortSignal.timeout(5000) });
+    const json = await res.json();
+    const last = json?.chart?.result?.[0]?.meta?.regularMarketPrice;
+    if (last && last > 0) return last;
+  } catch(e) {}
+  // Hard fallback prices
+  if (sym.includes('XAU'))  return 3280;
+  if (sym.includes('XAG'))  return 32.5;
+  if (sym.includes('JPY'))  return 149.5;
+  if (sym.includes('NAS'))  return 19800;
+  if (sym.includes('US30')) return 43200;
+  if (sym.includes('US500'))return 5850;
+  if (sym.includes('BTC'))  return 82000;
+  if (sym.includes('ETH'))  return 3800;
+  if (sym.includes('CRUDE'))return 78.5;
+  if (sym.includes('EUR'))  return 1.0850;
+  if (sym.includes('GBP'))  return 1.2720;
+  return 1.0;
+}
+
+function buildFakeCandles(basePrice, n, iv) {
+  const now  = Math.floor(Date.now()/1000);
   const data = [];
+  let p = basePrice;
+  // Use proper volatility per asset class
+  const vol = basePrice > 1000 ? 0.0008 : basePrice > 100 ? 0.001 : 0.0003;
   for (let i = n-1; i >= 0; i--) {
     const o = p;
-    const c = p + (Math.random()-0.49) * p * 0.0015;
-    const h = Math.max(o,c) + Math.random() * p * 0.0005;
-    const l = Math.min(o,c) - Math.random() * p * 0.0005;
+    const c = p + (Math.random()-0.49) * p * vol;
+    const h = Math.max(o,c) + Math.random() * p * vol * 0.3;
+    const l = Math.min(o,c) - Math.random() * p * vol * 0.3;
     data.push({ time: now - i*iv, open:+o.toFixed(5), high:+h.toFixed(5), low:+l.toFixed(5), close:+c.toFixed(5) });
     p = c;
   }
-  candleSeries.setData(data);
-  lastPrice = p;
-  updatePrice(p, p - data[data.length-2].close);
+  return data;
+}
+
+let _tickInterval = null;
+
+async function loadCandles() {
+  if (_tickInterval) { clearInterval(_tickInterval); _tickInterval = null; }
+
+  // Show loading state
+  document.getElementById('livePrice').textContent = '...';
   document.getElementById('symBadge').textContent = currentSym + ' · ' +
     (currentTF==='1440'?'D1':currentTF==='240'?'H4':currentTF==='60'?'H1':'M'+currentTF);
+
+  let data = null;
+  let usedReal = false;
+
+  // Try real data first
+  data = await fetchYFCandles(currentSym, currentTF);
+  if (data && data.length > 5) {
+    usedReal = true;
+    candleSeries.setData(data);
+    lastPrice = data[data.length-1].close;
+    const prev = data[data.length-2]?.close || lastPrice;
+    updatePrice(lastPrice, lastPrice - prev);
+  } else {
+    // Fallback: get real price, build fake candles from it
+    const base = await fetchFallbackPrice(currentSym);
+    const iv   = parseInt(currentTF) * 60;
+    data = buildFakeCandles(base, 200, iv);
+    candleSeries.setData(data);
+    lastPrice = data[data.length-1].close;
+    updatePrice(lastPrice, lastPrice - data[data.length-2].close);
+    console.warn(`[Chart] Real candle data unavailable for ${currentSym} — using realistic simulation from live price ${base}`);
+  }
+
+  // Live tick update — gentle realistic movement
+  const iv = parseInt(currentTF) * 60;
+  const vol = lastPrice > 1000 ? 0.00015 : lastPrice > 100 ? 0.0002 : 0.00008;
+  _tickInterval = setInterval(async () => {
+    if (!candleSeries || !chart) return;
+    const now  = Math.floor(Date.now()/1000);
+    const barT = Math.floor(now / iv) * iv;
+    const chg  = (Math.random()-0.495) * lastPrice * vol;
+    const np   = lastPrice + chg;
+    candleSeries.update({
+      time:  barT,
+      open:  lastPrice,
+      high:  Math.max(lastPrice, np) + lastPrice * vol * 0.1,
+      low:   Math.min(lastPrice, np) - lastPrice * vol * 0.1,
+      close: np
+    });
+    updatePrice(np, chg);
+    lastPrice = np;
+  }, 2000);
 }
 
 function updatePrice(price, chg) {
-  const dp = currentSym.includes('JPY') ? 3 : currentSym.includes('BTC') ? 1 : currentSym.includes('NAS')||currentSym.includes('US30') ? 1 : 5;
+  const dp = getDp(currentSym);
   document.getElementById('livePrice').textContent = price.toFixed(dp);
   const cel = document.getElementById('livePriceChg');
-  cel.textContent = (chg>=0?'▲ +':'▼ ')+chg.toFixed(dp);
+  cel.textContent = (chg>=0?'▲ +':'▼ ')+Math.abs(chg).toFixed(dp);
   cel.style.color = chg>=0?'#00c805':'#ff3b3b';
 }
 
@@ -626,19 +832,6 @@ window.changeTF = function(btn, tf) {
   btn.classList.add('on');
   loadCandles();
 };
-
-// ── LIVE TICK ──
-setInterval(() => {
-  if (!candleSeries || !chart) return;
-  const now = Math.floor(Date.now()/1000);
-  const iv  = parseInt(currentTF) * 60;
-  const barT = Math.floor(now/iv)*iv;
-  const chg  = (Math.random()-0.495) * lastPrice * 0.0003;
-  const np   = lastPrice + chg;
-  candleSeries.update({ time:barT, open:lastPrice, high:Math.max(lastPrice,np)+lastPrice*0.0001, low:Math.min(lastPrice,np)-lastPrice*0.0001, close:np });
-  updatePrice(np, chg);
-  lastPrice = np;
-}, 2000);
 
 // ══════════════════════════
 // SIGNAL LINES ON CHART
@@ -897,17 +1090,38 @@ window.placeOrder = function() {
   const lp  = parseFloat(document.getElementById('limitPrice')?.value)||null;
   if (!qty||!sl||!tp) { toast('⚠ Qty, SL, TP fill karo'); return; }
 
+  // Get target account from dropdown
+  const accSel  = document.getElementById('oAccount')?.value;
+  let cid, nidx;
+  if (accSel && accSel.includes('__')) {
+    const parsed = parseAccKey(accSel);
+    cid = parsed.cid; nidx = parsed.nidx;
+    // Also update active account
+    _activeAccId = accSel;
+    algoConfig.fbClusterId = cid;
+    algoConfig.fbNodeIdx   = nidx;
+  } else {
+    cid   = algoConfig.fbClusterId || localStorage.getItem('isi_sel_cluster') || 'default';
+    nidx  = algoConfig.fbNodeIdx   ?? localStorage.getItem('isi_sel_node')    ?? 0;
+  }
+
+  const node = _fbClusters[cid]?.nodes?.[nidx];
+  const accName = node?.title || `Account ${nidx+1}`;
+
   if (db) {
-    const cid  = algoConfig.fbClusterId || localStorage.getItem('isi_sel_cluster') || 'default';
-    const nidx = algoConfig.fbNodeIdx   || localStorage.getItem('isi_sel_node') || '0';
-    fbPush(ref(db,`isi_v6/order_requests/${cid}/${nidx}`), {
+    fbPush(ref(db, `isi_v6/order_requests/${cid}/${nidx}`), {
       symbol:sym, direction:orderDir, type:orderType,
       qty, sl, tp, comment:cmt, limitPrice:lp,
-      requestedAt: new Date().toISOString(), status:'ORDER_PENDING', source:'ISI_TERMINAL'
+      clusterId: cid, nodeIdx: nidx, accountName: accName,
+      brokerType: node?.brokerType || 'mt5',
+      mt5Login:   node?.mt5Login   || '',
+      mt5Server:  node?.mt5Server  || '',
+      requestedAt: new Date().toISOString(), status:'ORDER_PENDING', source:'ISI_ALGO_TERMINAL'
     });
-    toast(`✅ Order sent: ${orderDir} ${sym} x${qty} → Python engine execute karega`);
+    toast(`✅ Order → ${accName}: ${orderDir} ${sym} x${qty}`);
+    if (typeof window._OT_reload === 'function') window._OT_reload();
   } else {
-    toast('⚠ Firebase connect nahi — Python engine manually order dega');
+    toast('⚠ Firebase connect nahi');
   }
 };
 
@@ -938,6 +1152,12 @@ window.saveTVCfg = function() {
 };
 
 window.saveAllCfg = function() {
+  // From cluster/account dropdown (primary)
+  const selCluster = document.getElementById('acCluster')?.value;
+  const selNode    = document.getElementById('acNode')?.value;
+  if (selCluster) algoConfig.fbClusterId = selCluster;
+  if (selNode !== '' && selNode !== undefined) algoConfig.fbNodeIdx = parseInt(selNode);
+
   algoConfig.brokerType = document.getElementById('bt-mt5').classList.contains('on')?'mt5':'api';
   algoConfig.mt5Login   = document.getElementById('mt5Login').value;
   algoConfig.mt5Pass    = document.getElementById('mt5Pass').value;
@@ -947,7 +1167,9 @@ window.saveAllCfg = function() {
   algoConfig.apiKey     = document.getElementById('apiKey').value;
   algoConfig.apiWs      = document.getElementById('apiWs').value;
   algoConfig.fbDbUrl    = document.getElementById('fbUrl').value;
-  algoConfig.fbClusterId= document.getElementById('fbCid').value;
+  // fbCid also sync from dropdown
+  const fbCidEl = document.getElementById('fbCid');
+  if (fbCidEl?.value) algoConfig.fbClusterId = fbCidEl.value;
   save();
   document.getElementById('cfgStatus').textContent='✅ Saved — Download config.json karo → Python restart karo';
   document.getElementById('cfgStatus').style.color='#00c805';
@@ -977,7 +1199,7 @@ window.dlConfig = function() {
     broker:{type:algoConfig.brokerType||'mt5',
       mt5:{login:parseInt(algoConfig.mt5Login||0),password:algoConfig.mt5Pass||'',server:algoConfig.mt5Server||'',path:algoConfig.mt5Path||''},
       custom_api:{base_url:algoConfig.apiBase||'',api_key:algoConfig.apiKey||'',ws_url:algoConfig.apiWs||'',auth_header:'Authorization',auth_prefix:'Bearer'}},
-    firebase:{service_account_path:'firebase_service_account.json',database_url:algoConfig.fbDbUrl||'',cluster_id:algoConfig.fbClusterId||'',node_idx:0},
+    firebase:{service_account_path:'firebase_service_account.json',database_url:algoConfig.fbDbUrl||'',cluster_id:algoConfig.fbClusterId||'',node_idx:algoConfig.fbNodeIdx||0},
     watchlist:wl,
     analysis:{htf_timeframe:document.getElementById('htfTf').value,ltf_timeframe:document.getElementById('ltfTf').value,exec_timeframe:document.getElementById('execTf').value,
       htf_candles:200,ltf_candles:100,min_signal_score:parseFloat(document.getElementById('minScore').value||65),
@@ -1088,7 +1310,9 @@ function loadSaved() {
   if(c.mt5Server)  document.getElementById('mt5Server').value=c.mt5Server;
   if(c.apiBase)    document.getElementById('apiBase').value=c.apiBase;
   if(c.fbDbUrl)    document.getElementById('fbUrl').value=c.fbDbUrl;
-  if(c.fbClusterId)document.getElementById('fbCid').value=c.fbClusterId;
+  // fbCid hidden sync
+  const fbCidEl = document.getElementById('fbCid');
+  if(fbCidEl && c.fbClusterId) fbCidEl.value = c.fbClusterId;
   if(c.webhookUrl) {
     document.getElementById('webhookUrl').value=c.webhookUrl;
     document.getElementById('whuDisp').textContent=c.webhookUrl;
@@ -1099,11 +1323,337 @@ function loadSaved() {
   if(c.scanInt)    document.getElementById('scanInt').value=c.scanInt;
   if(c.maxSigs)    document.getElementById('maxSigs').value=c.maxSigs;
   renderWL();
+  // Cluster dropdown restored inside loadClusterDropdown() after Firebase loads
 }
+
+// ══════════════════════════════════════════════════════════
+// MULTI-ACCOUNT MANAGER
+// ══════════════════════════════════════════════════════════
+
+let _fbClusters  = {};
+let _liveStats   = {};
+let _activeAccId = null;
+let _posAccId    = null;
+
+const accKey     = (cid, nidx) => `${cid}__${nidx}`;
+const parseAccKey = k => { const [cid, ...rest] = k.split('__'); return { cid, nidx: parseInt(rest.join('__')) }; };
+
+function loadClusterDropdown() {
+  import('https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js').then(({ getDatabase, ref, onValue: onVal }) => {
+    import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js').then(({ initializeApp, getApps }) => {
+      try {
+        const FB = {
+          apiKey:"AIzaSyBhVpnVtlLMy0laY8U5A5Y8lLY9s3swjkE",
+          authDomain:"trading-terminal-b8006.firebaseapp.com",
+          projectId:"trading-terminal-b8006",
+          storageBucket:"trading-terminal-b8006.firebasestorage.app",
+          messagingSenderId:"690730161822",
+          appId:"1:690730161822:web:81dabfd7b4575e86860d8f",
+          databaseURL:"https://trading-terminal-b8006-default-rtdb.firebaseio.com"
+        };
+        const ex  = getApps().find(a=>a.name==="[DEFAULT]") || getApps()[0];
+        const app = ex || initializeApp(FB, "algo_mc");
+        const fdb = getDatabase(app);
+
+        onVal(ref(fdb,"isi_v6/clusters"), snap => {
+          _fbClusters = snap.val() || {};
+          renderAccountCards();
+          populateClusterDropdowns();
+          populateOrderAccountDropdown();
+          populatePosAccTabs();
+        });
+        onVal(ref(fdb,"isi_v6/stats"), snap => {
+          _liveStats = snap.val() || {};
+          renderAccountCards();
+          refreshPositionsDisplay();
+        });
+        onVal(ref(fdb,"isi_v6/account_info"), snap => {
+          const info = snap.val() || {};
+          Object.entries(info).forEach(([cid, nodes]) => {
+            Object.entries(nodes||{}).forEach(([nidx, acc]) => {
+              updateAccountCardLive(accKey(cid, parseInt(nidx)), acc);
+            });
+          });
+        });
+      } catch(e) { console.warn("Multi-account:", e); }
+    });
+  });
+}
+
+function renderAccountCards() {
+  const grid = document.getElementById("acCardsGrid");
+  if (!grid) return;
+  const entries = [];
+  Object.entries(_fbClusters).forEach(([cid, cl]) => {
+    (cl.nodes||[]).forEach((node, nidx) => entries.push({ cid, cl, node, nidx, key: accKey(cid, nidx) }));
+  });
+  if (!entries.length) {
+    grid.innerHTML = "<div style=\"color:#222;font-size:0.6rem;text-align:center;padding:16px;\">Settings mein koi cluster nahi — pehle cluster banao.</div>";
+    return;
+  }
+  grid.innerHTML = "";
+  entries.forEach(({ cid, cl, node, nidx, key }) => {
+    const stats   = _liveStats?.[cid]?.[nidx] || {};
+    const bal     = stats.currentBal ?? node.balance ?? 0;
+    const net     = stats.net ?? 0;
+    const netCol  = net >= 0 ? "#00c805" : "#ff3b3b";
+    const btype   = node.brokerType || "mt5";
+    const isActive = _activeAccId === key;
+    const hasCreds = btype === "mt5" ? !!(node.mt5Login && node.mt5Server) : !!(node.apiBaseUrl && node.apiKey);
+    const brokerLine = btype === "mt5"
+      ? `📊 MT5 ${node.mt5Login ? "· #"+node.mt5Login : ""} ${node.mt5Server ? "· "+node.mt5Server : ""}`
+      : `🌐 API ${node.apiBaseUrl ? "· "+(node.apiBaseUrl.replace("https://","").split("/")[0]) : ""}`;
+
+    const card = document.createElement("div");
+    card.id = `accard_${key}`;
+    card.style.cssText = `background:#070707;border:1.5px solid ${isActive?"#c5a059":"#111"};border-radius:6px;padding:10px;margin-bottom:6px;transition:all 0.2s;`;
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:7px;">
+        <div>
+          <div style="font-size:0.72rem;font-weight:900;color:#fff;">${node.title||"Account "+(nidx+1)}</div>
+          <div style="font-size:0.52rem;color:#333;margin-top:1px;">${cl.title||cid} · Node ${nidx}</div>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;justify-content:flex-end;">
+          ${hasCreds
+            ? `<span style="font-size:0.46rem;background:#020d02;border:1px solid #00c805;color:#00c805;padding:2px 5px;border-radius:2px;">✅ CREDS</span>`
+            : `<span style="font-size:0.46rem;background:#0d0202;border:1px solid #ff3b3b;color:#ff3b3b;padding:2px 5px;border-radius:2px;">⚠ NO CREDS</span>`}
+          <span id="accard_live_${key}" style="font-size:0.46rem;background:#1a1a1a;border:1px solid #222;color:#444;padding:2px 5px;border-radius:2px;">● OFFLINE</span>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:7px;">
+        <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;">
+          <div style="font-size:0.42rem;color:#222;letter-spacing:1px;margin-bottom:1px;">BALANCE</div>
+          <div style="font-size:0.62rem;font-weight:bold;font-family:monospace;color:#c5a059;">${(node.curr||"$")}${bal.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</div>
+        </div>
+        <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;">
+          <div style="font-size:0.42rem;color:#222;letter-spacing:1px;margin-bottom:1px;">TRADES</div>
+          <div style="font-size:0.62rem;font-weight:bold;font-family:monospace;color:#888;">${stats.trades||0}</div>
+        </div>
+        <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;">
+          <div style="font-size:0.42rem;color:#222;letter-spacing:1px;margin-bottom:1px;">WIN RATE</div>
+          <div style="font-size:0.62rem;font-weight:bold;font-family:monospace;color:#888;">${stats.winRate ? stats.winRate.toFixed(0)+"%" : "—"}</div>
+        </div>
+        <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;">
+          <div style="font-size:0.42rem;color:#222;letter-spacing:1px;margin-bottom:1px;">NET P&L</div>
+          <div style="font-size:0.62rem;font-weight:bold;font-family:monospace;color:${netCol};">${net>=0?"+":""}${Math.abs(net).toFixed(0)}</div>
+        </div>
+      </div>
+      <div style="font-size:0.5rem;color:#333;margin-bottom:7px;padding:3px 6px;background:#050505;border-radius:3px;">${brokerLine}</div>
+      <div style="display:flex;gap:4px;">
+        <button onclick="setActiveAccount('${key}')"
+          style="flex:1;padding:5px;font-size:0.56rem;font-weight:bold;cursor:pointer;border-radius:3px;background:${isActive?"#0a0800":"#080808"};border:1px solid ${isActive?"#c5a059":"#1a1a1a"};color:${isActive?"#c5a059":"#555"};">
+          ${isActive?"✅ ACTIVE (orders here)":"⚡ SET ACTIVE"}
+        </button>
+        <button onclick="viewPositions('${key}')"
+          style="flex:1;padding:5px;font-size:0.56rem;font-weight:bold;cursor:pointer;border-radius:3px;background:#020d02;border:1px solid #00c80544;color:#00c805;">
+          📊 POSITIONS
+        </button>
+        <button onclick="editAccount('${key}')"
+          style="padding:5px 8px;font-size:0.6rem;cursor:pointer;border-radius:3px;background:#080808;border:1px solid #222;color:#444;" title="Edit credentials">✏</button>
+      </div>`;
+    grid.appendChild(card);
+  });
+}
+
+function updateAccountCardLive(key, accInfo) {
+  const pill = document.getElementById(`accard_live_${key}`);
+  if (!pill) return;
+  const ok = accInfo.connected;
+  pill.textContent = ok ? "● LIVE" : "● OFFLINE";
+  pill.style.background = ok ? "#020d02" : "#1a1a1a";
+  pill.style.borderColor = ok ? "#00c805" : "#222";
+  pill.style.color       = ok ? "#00c805" : "#444";
+}
+
+window.refreshAccountCards = function() { renderAccountCards(); toast("↻ Refreshed"); };
+
+window.setActiveAccount = function(key) {
+  _activeAccId = key;
+  const { cid, nidx } = parseAccKey(key);
+  algoConfig.fbClusterId = cid;
+  algoConfig.fbNodeIdx   = nidx;
+  const node = _fbClusters[cid]?.nodes?.[nidx];
+  if (node) {
+    algoConfig.brokerType = node.brokerType || "mt5";
+    algoConfig.mt5Login   = node.mt5Login   || "";
+    algoConfig.mt5Pass    = node.mt5Pass    || "";
+    algoConfig.mt5Server  = node.mt5Server  || "";
+    algoConfig.mt5Path    = node.mt5Path    || "";
+    algoConfig.apiBase    = node.apiBaseUrl  || "";
+    algoConfig.apiKey     = node.apiKey      || "";
+    algoConfig.apiWs      = node.apiWsUrl    || "";
+  }
+  save();
+  renderAccountCards();
+  populateOrderAccountDropdown();
+  toast(`✅ Active: ${node?.title||"Account "+(nidx+1)} — orders yahan jaayenge`);
+};
+
+window.viewPositions = function(key) {
+  _posAccId = key;
+  document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("on"));
+  document.querySelectorAll("[id^=\"pane-\"]").forEach(p=>p.style.display="none");
+  document.getElementById("pane-positions").style.display = "block";
+  document.querySelector(".tab-btn[onclick*=\"positions\"]")?.classList.add("on");
+  refreshPositionsDisplay();
+};
+
+window.editAccount = function(key) {
+  const { cid, nidx } = parseAccKey(key);
+  const details = document.getElementById("addAccDetails");
+  if (details) details.open = true;
+  const clSel = document.getElementById("acCluster");
+  if (clSel) { clSel.value = cid; onClusterSelect(true); }
+  setTimeout(() => {
+    const ndSel = document.getElementById("acNode");
+    if (ndSel) { ndSel.value = nidx; onNodeSelect(true); }
+  }, 150);
+  details?.scrollIntoView({ behavior:"smooth" });
+};
+
+function populateClusterDropdowns() {
+  const sel = document.getElementById("acCluster");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = "<option value=\"\">— Cluster select karo —</option>";
+  Object.entries(_fbClusters).forEach(([cid, cl]) => {
+    const o = document.createElement("option");
+    o.value = cid; o.textContent = cl.title || cid;
+    sel.appendChild(o);
+  });
+  const saved = algoConfig.fbClusterId;
+  if (saved && _fbClusters[saved]) sel.value = saved;
+  else if (prev && _fbClusters[prev]) sel.value = prev;
+}
+
+function populateOrderAccountDropdown() {
+  const sel = document.getElementById("oAccount");
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = "<option value=\"\">— Select account —</option>";
+  Object.entries(_fbClusters).forEach(([cid, cl]) => {
+    (cl.nodes||[]).forEach((node, nidx) => {
+      const key = accKey(cid, nidx);
+      const stats = _liveStats?.[cid]?.[nidx] || {};
+      const bal   = stats.currentBal ?? node.balance ?? 0;
+      const o = document.createElement("option");
+      o.value = key;
+      o.textContent = `${node.title||"Acc "+(nidx+1)} (${cl.title||cid}) — ${(node.curr||"$")}${bal.toLocaleString()}`;
+      if (key === _activeAccId) o.selected = true;
+      sel.appendChild(o);
+    });
+  });
+}
+
+function populatePosAccTabs() {
+  const cont = document.getElementById("posAccTabs");
+  if (!cont) return;
+  cont.innerHTML = "<span style=\"font-size:0.52rem;color:#333;letter-spacing:1px;\">VIEW:</span>";
+  const allBtn = document.createElement("button");
+  allBtn.textContent = "ALL";
+  allBtn.onclick = () => { _posAccId = "ALL"; refreshPositionsDisplay(); };
+  allBtn.style.cssText = "padding:3px 8px;font-size:0.55rem;font-weight:bold;cursor:pointer;border-radius:3px;background:#0a0800;border:1px solid #c5a059;color:#c5a059;";
+  cont.appendChild(allBtn);
+  Object.entries(_fbClusters).forEach(([cid, cl]) => {
+    (cl.nodes||[]).forEach((node, nidx) => {
+      const key = accKey(cid, nidx);
+      const btn = document.createElement("button");
+      btn.id = `postab_${key}`; btn.textContent = node.title||("Acc "+(nidx+1));
+      btn.onclick = () => { _posAccId = key; refreshPositionsDisplay(); };
+      btn.style.cssText = "padding:3px 8px;font-size:0.55rem;font-weight:bold;cursor:pointer;border-radius:3px;background:#080808;border:1px solid #1a1a1a;color:#555;";
+      cont.appendChild(btn);
+    });
+  });
+  if (!_posAccId && _activeAccId) _posAccId = _activeAccId;
+}
+
+function refreshPositionsDisplay() {
+  if (!_posAccId || _posAccId === "ALL") {
+    document.getElementById("allAccSummary").style.display = "block";
+    document.getElementById("posAccTitle").textContent = "ALL ACCOUNTS";
+    document.getElementById("posAccBroker").textContent = "";
+    renderAllAccSummary(); return;
+  }
+  document.getElementById("allAccSummary").style.display = "none";
+  const { cid, nidx } = parseAccKey(_posAccId);
+  const node  = _fbClusters[cid]?.nodes?.[nidx];
+  const stats = _liveStats?.[cid]?.[nidx] || {};
+  if (!node) return;
+  const bal = stats.currentBal ?? node.balance ?? 0;
+  const net = stats.net ?? 0;
+  const nc  = net >= 0 ? "#00c805" : "#ff3b3b";
+  document.getElementById("posAccTitle").textContent = node.title||("Account "+(nidx+1));
+  document.getElementById("posAccBroker").textContent = node.brokerType==="mt5" ? `📊 MT5 · ${node.mt5Server||"—"}` : "🌐 API";
+  const s = (id, v, col) => { const el=document.getElementById(id); if(!el)return; el.textContent=v; if(col) el.style.color=col; };
+  s("accBal", `${node.curr||"$"}${bal.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2})}`);
+  s("accEq",  stats.equity  ? `${node.curr||"$"}${stats.equity.toFixed(2)}`  : "—");
+  s("accFM",  stats.margin  ? `${node.curr||"$"}${stats.margin.toFixed(2)}`  : "—");
+  s("accFL",  stats.float  !== undefined ? `${stats.float>=0?"+":""}${node.curr||"$"}${Math.abs(stats.float||0).toFixed(2)}` : "—", stats.float>=0?"#00c805":"#ff3b3b");
+  s("accTrd", stats.trades ||0);
+  s("accWR",  stats.winRate ? stats.winRate.toFixed(0)+"%" : "—");
+  s("accNet", `${net>=0?"+":""}${node.curr||"$"}${Math.abs(net).toFixed(2)}`, nc);
+  s("accBrk", node.brokerType==="mt5" ? `MT5 · ${node.mt5Login||"—"} · ${node.mt5Server||"—"}` : `API · ${(node.apiBaseUrl||"—").replace("https://","")}`);
+  document.querySelectorAll("[id^=\"postab_\"]").forEach(b=>{b.style.borderColor="#1a1a1a";b.style.color="#555";b.style.background="#080808";});
+  const tb=document.getElementById(`postab_${_posAccId}`);
+  if(tb){tb.style.borderColor="#00c805";tb.style.color="#00c805";tb.style.background="#020d02";}
+}
+
+function renderAllAccSummary() {
+  const grid=document.getElementById("allAccGrid"); if(!grid)return;
+  let tBal=0,tNet=0,tTrd=0,tAcc=0;
+  Object.entries(_fbClusters).forEach(([cid,cl])=>{
+    (cl.nodes||[]).forEach((node,nidx)=>{
+      const s=_liveStats?.[cid]?.[nidx]||{};
+      tBal+=s.currentBal??node.balance??0; tNet+=s.net??0; tTrd+=s.trades||0; tAcc++;
+    });
+  });
+  grid.innerHTML=`
+    <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;"><div style="font-size:0.43rem;color:#222;letter-spacing:1px;">ACCOUNTS</div><div style="font-size:0.7rem;font-weight:bold;color:#888;">${tAcc}</div></div>
+    <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;"><div style="font-size:0.43rem;color:#222;letter-spacing:1px;">TOTAL BAL</div><div style="font-size:0.7rem;font-weight:bold;color:#c5a059;">$${tBal.toLocaleString("en-US",{minimumFractionDigits:0,maximumFractionDigits:0})}</div></div>
+    <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;"><div style="font-size:0.43rem;color:#222;letter-spacing:1px;">TOTAL TRADES</div><div style="font-size:0.7rem;font-weight:bold;color:#888;">${tTrd}</div></div>
+    <div style="background:#050505;border:1px solid #0d0d0d;border-radius:3px;padding:4px;text-align:center;"><div style="font-size:0.43rem;color:#222;letter-spacing:1px;">NET P&L</div><div style="font-size:0.7rem;font-weight:bold;color:${tNet>=0?"#00c805":"#ff3b3b"};">${tNet>=0?"+":""}$${Math.abs(tNet).toFixed(2)}</div></div>`;
+}
+
+window.onClusterSelect = function(silent) {
+  const cid=document.getElementById("acCluster")?.value;
+  const ndSel=document.getElementById("acNode"); if(!ndSel)return;
+  ndSel.innerHTML="<option value=\"\">— Account select karo —</option>";
+  if(!cid||!_fbClusters[cid])return;
+  (_fbClusters[cid].nodes||[]).forEach((node,idx)=>{
+    const o=document.createElement("option"); o.value=idx;
+    o.textContent=`${node.title||"Account "+(idx+1)} — ${node.curr||"$"}${(node.balance||0).toLocaleString()}`;
+    ndSel.appendChild(o);
+  });
+  const sn=algoConfig.fbNodeIdx!==undefined?String(algoConfig.fbNodeIdx):null;
+  if(sn!==null&&algoConfig.fbClusterId===cid){ndSel.value=sn;onNodeSelect(true);}
+};
+
+window.onNodeSelect = function(silent) {
+  const cid=document.getElementById("acCluster")?.value;
+  const nidx=document.getElementById("acNode")?.value;
+  if(!cid||nidx====""||nidx===undefined)return;
+  const node=(_fbClusters[cid]?.nodes||[])[parseInt(nidx)]; if(!node)return;
+  const btype=node.brokerType||"mt5"; setBTab(btype);
+  if(btype==="mt5"){
+    if(node.mt5Login)  document.getElementById("mt5Login").value=node.mt5Login;
+    if(node.mt5Pass)   document.getElementById("mt5Pass").value=node.mt5Pass;
+    if(node.mt5Server) document.getElementById("mt5Server").value=node.mt5Server;
+    document.getElementById("mt5Path").value=node.mt5Path||"";
+  } else {
+    if(node.apiBaseUrl)    document.getElementById("apiBase").value=node.apiBaseUrl;
+    if(node.apiKey)        document.getElementById("apiKey").value=node.apiKey;
+    if(node.apiAuthHeader) document.getElementById("apiHeader").value=node.apiAuthHeader;
+    document.getElementById("apiWs").value=node.apiWsUrl||"";
+  }
+  const fbCidEl=document.getElementById("fbCid"); if(fbCidEl) fbCidEl.value=cid;
+  if(!silent) toast(`Loaded: ${node.title||"Account "+(parseInt(nidx)+1)}`);
+};
+
 
 // ── BOOT ──
 initChart();
 loadSaved();
+loadClusterDropdown();
 checkSession();
 updateClock();
 setInterval(updateClock, 1000);
