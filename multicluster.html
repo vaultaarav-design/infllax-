@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Multi Cluster Equity Pulse — ISI Terminal</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link rel="stylesheet" href="style.css">
     <style>
@@ -115,10 +132,10 @@
     <!-- HEADER -->
     <div class="mc-header">
         <div>
-            <div class="mc-title">📊 MULTI CLUSTER — INSTITUTIONAL EQUITY PULSE</div>
+            <div class="mc-title"><img src="logo-icon.png" style="height:28px;width:28px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:8px;opacity:0.9;" onerror="this.style.display:'none'" alt="iX"> MULTI CLUSTER — INSTITUTIONAL EQUITY PULSE</div>
             <div id="fbStatus" class="mc-sub">● Connecting to Firebase...</div>
         </div>
-        <a href="monitoring.html" class="mc-back">← Monitoring</a>
+        <a href="monitoring.html" class="mc-back" target="_blank"← Monitoring</a>
     </div>
 
     <!-- CHART CARD -->
@@ -321,11 +338,11 @@
         <div>
             <div style="font-size:0.58rem;color:#444;letter-spacing:2px;margin-bottom:8px;">QUICK LINKS</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
-                <a href="index.html"      style="font-size:0.65rem;color:#555;text-decoration:none;">→ Live Terminal</a>
-                <a href="monitoring.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ Monitoring</a>
-                <a href="preentry.html"   style="font-size:0.65rem;color:#555;text-decoration:none;">→ Pre-Entry Analysis</a>
-                <a href="knowledge.html"  style="font-size:0.65rem;color:#555;text-decoration:none;">→ Knowledge Base</a>
-                <a href="Settings.html"   style="font-size:0.65rem;color:#555;text-decoration:none;">→ System Setup</a>
+                <a href="index.html"      style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Live Terminal</a>
+                <a href="monitoring.html" style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Monitoring</a>
+                <a href="preentry.html"   style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Pre-Entry Analysis</a>
+                <a href="knowledge.html"  style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Knowledge Base</a>
+                <a href="Settings.html"   style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ System Setup</a>
             </div>
         </div>
     </div>

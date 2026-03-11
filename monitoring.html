@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ISI Institutional Monitoring v6.0</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <link rel="stylesheet" href="style.css">
@@ -19,18 +36,18 @@
     <!-- HEADER -->
     <div class="mon-header">
         <div>
-            <div class="mon-title">INSTITUTIONAL <span style="color:var(--gold)">MONITORING</span></div>
+            <div class="mon-title"><img src="logo-icon.png" style="height:30px;width:30px;border-radius:7px;object-fit:cover;vertical-align:middle;margin-right:8px;opacity:0.9;" onerror="this.style.display='none'">INSTITUTIONAL <span style="color:var(--gold)">MONITORING</span></div>
             <div id="fbMonStatus" style="font-size:0.62rem; color:#555; margin-top:3px;">● CONNECTING TO FIREBASE...</div>
         </div>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <a href="index.html" class="btn-back">← Terminal</a>
+            <a href="index.html" class="btn-back" target="_blank"← Terminal</a>
             <a href="multicluster.html" target="_blank" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#000d1a,#001a33);border:2px solid #00aaff;color:#00aaff;padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;">
                 📊 MULTI CLUSTER
             </a>
-            <a href="knowledge.html" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#0a0800,#1a1200);border:2px solid var(--gold);color:var(--gold);padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;">
+            <a href="knowledge.html" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#0a0800,#1a1200);border:2px solid var(--gold);color:var(--gold);padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;" target="_blank"
                 📚 KNOWLEDGE BASE
             </a>
-            <a href="algo.html" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#020d02,#031a03);border:2px solid #00c805;color:#00c805;padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;">
+            <a href="algo.html" style="display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#020d02,#031a03);border:2px solid #00c805;color:#00c805;padding:8px 14px;border-radius:5px;font-weight:bold;font-size:0.7rem;text-decoration:none;letter-spacing:1px;white-space:nowrap;" target="_blank"
                 ⚡ ALGO SIGNALS
             </a>
         </div>
@@ -438,10 +455,10 @@
         <div>
             <div style="font-size:0.58rem;color:#444;letter-spacing:2px;margin-bottom:8px;">QUICK LINKS</div>
             <div style="display:flex;flex-direction:column;gap:5px;">
-                <a href="preentry.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ Pre-Entry Analysis</a>
-                <a href="index.html"    style="font-size:0.65rem;color:#555;text-decoration:none;">→ Live Terminal</a>
-                <a href="knowledge.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ Knowledge Base</a>
-                <a href="Settings.html" style="font-size:0.65rem;color:#555;text-decoration:none;">→ System Setup</a>
+                <a href="preentry.html" style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Pre-Entry Analysis</a>
+                <a href="index.html"    style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Live Terminal</a>
+                <a href="knowledge.html" style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ Knowledge Base</a>
+                <a href="Settings.html" style="font-size:0.65rem;color:#555;text-decoration:none;" target="_blank"→ System Setup</a>
             </div>
         </div>
     </div>

@@ -316,29 +316,27 @@ function buildDOM() {
 // ─────────────────────────────────────
 function startListening() {
     if (!_db) return;
-
-    const cid  = localStorage.getItem('isi_sel_cluster');
-    const nidx = localStorage.getItem('isi_sel_node') || '0';
-
-    if (!cid || cid === _lastCid) return;
-    _lastCid = cid;
-
     if (_unsub) { try { _unsub(); } catch(e) {} }
 
-    const path = `isi_v6/order_requests/${cid}/${nidx}`;
-
-    _unsub = onValue(ref(_db, path), snap => {
-        const raw   = snap.val() || {};
-        _orders     = {};
+    // Listen to ALL clusters globally — works on any device/browser worldwide
+    _unsub = onValue(ref(_db, 'isi_v6/order_requests'), snap => {
+        const allClusters = snap.val() || {};
+        _orders = {};
         const today = TODAY();
 
-        Object.entries(raw).forEach(([key, ord]) => {
-            if (!ord || typeof ord !== 'object') return;
-            if (ord.status === 'CANCELLED' && (ord.requestedAt || '').slice(0, 10) !== today) return;
-            const orderDate = (ord.requestedAt || '').slice(0, 10);
-            // Show: today's orders OR pending orders from any date
-            if (orderDate !== today && ord.status !== 'ORDER_PENDING') return;
-            _orders[key] = { ...ord, _key: key };
+        Object.entries(allClusters).forEach(([cid, nodes]) => {
+            if (!nodes || typeof nodes !== 'object') return;
+            Object.entries(nodes).forEach(([nidx, orders]) => {
+                if (!orders || typeof orders !== 'object') return;
+                Object.entries(orders).forEach(([key, ord]) => {
+                    if (!ord || typeof ord !== 'object') return;
+                    if (ord.status === 'CANCELLED' && (ord.requestedAt || '').slice(0, 10) !== today) return;
+                    const orderDate = (ord.requestedAt || '').slice(0, 10);
+                    if (orderDate !== today && ord.status !== 'ORDER_PENDING') return;
+                    const compKey = cid + '__' + nidx + '__' + key;
+                    _orders[compKey] = { ...ord, _key: key, _cid: cid, _nidx: nidx };
+                });
+            });
         });
 
         updateBadge();
@@ -610,11 +608,10 @@ window._OT = {
     async _doCancel(key) {
         if (!_db) { _toast('❌ Firebase not connected'); return; }
 
-        const cid  = localStorage.getItem('isi_sel_cluster');
-        const nidx = localStorage.getItem('isi_sel_node') || '0';
-        if (!cid) { _toast('❌ Cluster not selected'); return; }
-
-        const ord = _orders[key];
+        const ord  = _orders[key];
+        const cid  = (ord && ord._cid)  || localStorage.getItem('isi_sel_cluster');
+        const nidx = (ord && ord._nidx) || localStorage.getItem('isi_sel_node') || '0';
+        if (!cid) { _toast('❌ Cluster not identified'); return; }
         if (!ord) return;
 
         try {

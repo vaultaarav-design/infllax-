@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ISI Knowledge Base | SOP · Checklist · Notes</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
 <link rel="stylesheet" href="style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
@@ -104,14 +121,14 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-he
 <!-- TOPBAR -->
 <div class="kb-top">
     <div>
-        <div class="kb-brand-title">📚 KNOWLEDGE BASE</div>
+        <div class="kb-brand-title"><img src="logo-icon.png" style="height:26px;width:26px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:8px;opacity:0.85;" onerror="this.style.display='none'">📚 KNOWLEDGE BASE</div>
         <div class="kb-brand-sub">ISI Terminal · Infllax · Institutional Library</div>
     </div>
     <div class="kb-nav">
-        <a href="preentry.html"   class="kb-navbtn">PRE-ENTRY</a>
-        <a href="index.html"      class="kb-navbtn">TERMINAL</a>
-        <a href="monitoring.html" class="kb-navbtn">MONITOR</a>
-        <a href="Settings.html"   class="kb-navbtn gold">⚙ ADD / MANAGE</a>
+        <a href="preentry.html"   class="kb-navbtn" target="_blank"PRE-ENTRY</a>
+        <a href="index.html"      class="kb-navbtn" target="_blank"TERMINAL</a>
+        <a href="monitoring.html" class="kb-navbtn" target="_blank"MONITOR</a>
+        <a href="Settings.html"   class="kb-navbtn gold" target="_blank"⚙ ADD / MANAGE</a>
     </div>
 </div>
 
@@ -131,7 +148,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-he
         <div class="sb-lbl">Custom</div>
         <div id="sbCustom"></div>
         <div style="padding:10px 14px;border-top:1px solid #0a0a0a;margin-top:auto;">
-            <a href="Settings.html" style="font-size:0.6rem;color:#2a2a2a;text-decoration:none;">⚙ Manage in Settings →</a>
+            <a href="Settings.html" style="font-size:0.6rem;color:#2a2a2a;text-decoration:none;" target="_blank"⚙ Manage in Settings →</a>
         </div>
     </div>
 
@@ -156,7 +173,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-he
                     <div id="catTitle" style="font-size:0.88rem;font-weight:bold;color:var(--gold);letter-spacing:1px;">ALL ENTRIES</div>
                     <div id="catSub"   style="font-size:0.58rem;color:#3a3a3a;margin-top:2px;">Sabhi categories</div>
                 </div>
-                <a href="Settings.html" style="font-size:0.65rem;color:var(--gold);border:1px solid var(--gold);padding:5px 12px;border-radius:4px;text-decoration:none;font-weight:bold;">＋ Add Entry</a>
+                <a href="Settings.html" style="font-size:0.65rem;color:var(--gold);border:1px solid var(--gold);padding:5px 12px;border-radius:4px;text-decoration:none;font-weight:bold;" target="_blank"＋ Add Entry</a>
             </div>
 
             <div id="kbCards"><div class="kb-empty">⏳ Loading...</div></div>
@@ -212,10 +229,10 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;min-he
         <div>
             <div class="kb-fcollbl">Navigate</div>
             <div class="kb-flinks">
-                <a href="preentry.html"   class="kb-flink">→ Pre-Entry Analysis</a>
-                <a href="index.html"      class="kb-flink">→ Live Terminal</a>
-                <a href="monitoring.html" class="kb-flink">→ Monitoring Dashboard</a>
-                <a href="Settings.html"   class="kb-flink">→ System Setup & Add Entries</a>
+                <a href="preentry.html"   class="kb-flink" target="_blank"→ Pre-Entry Analysis</a>
+                <a href="index.html"      class="kb-flink" target="_blank"→ Live Terminal</a>
+                <a href="monitoring.html" class="kb-flink" target="_blank"→ Monitoring Dashboard</a>
+                <a href="Settings.html"   class="kb-flink" target="_blank"→ System Setup & Add Entries</a>
             </div>
         </div>
         <div>

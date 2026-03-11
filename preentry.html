@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ISI Pre-Entry Analysis v6.0</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
 <link rel="stylesheet" href="style.css">
 <style>
 /* ── PRE-ENTRY PAGE STYLES ── */
@@ -206,7 +223,7 @@
 <!-- HEADER -->
 <header class="pe-header">
     <div>
-        <div class="pe-title">ISI PRE-ENTRY ANALYSIS</div>
+        <div class="pe-title"><img src="logo-icon.png" style="height:28px;width:28px;border-radius:6px;object-fit:cover;vertical-align:middle;margin-right:8px;opacity:0.9;" onerror="this.style.display='none'">ISI PRE-ENTRY ANALYSIS</div>
         <div class="pe-subtitle">Institutional Intelligence · Market Structure Engine</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;">
@@ -217,8 +234,8 @@
         <select id="peAccountSel" class="selector-dropdown" disabled onchange="onPeAccountChange()" style="min-width:130px;">
             <option value="">— Account —</option>
         </select>
-        <button class="pe-nav-btn" onclick="location.href='monitoring.html'">📊 MON</button>
-        <button class="pe-nav-btn" onclick="location.href='Settings.html'">⚙ SETUP</button>
+        <button class="pe-nav-btn" onclick="window.open('monitoring.html','_blank')">📊 MON</button>
+        <button class="pe-nav-btn" onclick="window.open('Settings.html','_blank')">⚙ SETUP</button>
         <button class="pe-nav-btn live" id="enterTerminalBtn" onclick="goToTerminal()">
             ▶ ENTER TERMINAL
         </button>

@@ -4,6 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ISI Algo Engine v2 | Chart + Signals + Orders</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>
 // Fallback CDN if jsdelivr fails
@@ -170,7 +187,71 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
 .bdot{width:5px;height:5px;border-radius:50%;display:inline-block;margin-right:4px;}
 
 /* TOAST */
-.toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);background:#0d0d0d;border:1px solid var(--gold);color:var(--gold);padding:8px 18px;border-radius:4px;font-size:0.65rem;font-weight:bold;z-index:9999;display:none;letter-spacing:1px;}
+.toast{position:fixed;bottom:36px;left:50%;transform:translateX(-50%);background:#0d0d0d;border:1px solid var(--gold);color:var(--gold);padding:8px 18px;border-radius:4px;font-size:0.65rem;font-weight:bold;z-index:9999;display:none;letter-spacing:1px;animation:toastIn 0.3s ease;}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px);}to{opacity:1;transform:translateX(-50%) translateY(0);}}
+
+/* ═══ SMOOTH ANIMATIONS ═══ */
+/* All interactive elements */
+.ptab, .toolbar-btn, .tf-btn, .btn, .btab, .emode, .odir-btn, .otyp-b, .sa, .wlc, .nav-link {
+  transition: all 0.18s cubic-bezier(0.4,0,0.2,1);
+}
+/* Tab hover glow */
+.ptab:hover{color:#666;background:#0a0a0a;}
+.ptab.on{color:var(--gold);border-bottom-color:var(--gold);background:#0a0800;box-shadow:0 2px 12px rgba(197,160,89,0.08);}
+/* Button hover */
+.toolbar-btn:hover{background:#111;color:#aaa;transform:translateY(-1px);}
+.toolbar-btn.draw-active{background:#0a0a0a;box-shadow:inset 0 0 8px rgba(197,160,89,0.15);transform:translateY(-1px);}
+.tf-btn:hover{border-color:#333;color:#888;background:#0d0d0d;}
+.tf-btn.on{border-color:var(--gold);color:var(--gold);background:#0d0800;box-shadow:0 0 8px rgba(197,160,89,0.12);}
+/* Card hover */
+.sc:hover{border-color:#222;box-shadow:0 2px 12px rgba(0,0,0,0.4);}
+.sc{transition:all 0.2s ease;}
+/* Smooth field focus */
+.fi{transition:border-color 0.15s ease, background 0.15s ease;}
+/* Exec button pulse */
+.exec-buy:hover{box-shadow:0 0 16px rgba(0,200,5,0.2);transform:translateY(-1px);}
+.exec-sell:hover{box-shadow:0 0 16px rgba(255,59,59,0.2);transform:translateY(-1px);}
+.exec-btn{transition:all 0.18s ease;}
+/* Panel body smooth scroll */
+.panel-body{scroll-behavior:smooth;}
+/* Account card hover */
+[id^="accard_"]{transition:border-color 0.2s ease, box-shadow 0.2s ease !important;}
+[id^="accard_"]:hover{box-shadow:0 2px 16px rgba(0,0,0,0.5) !important;}
+/* Smooth pane transitions */
+[id^="pane-"]{animation:paneIn 0.15s ease;}
+@keyframes paneIn{from{opacity:0;transform:translateX(4px);}to{opacity:1;transform:translateX(0);}}
+
+/* TOOLBAR DIVIDER */
+.toolbar-divider{width:1px;height:18px;background:#1a1a1a;flex-shrink:0;margin:0 2px;}
+
+/* DRAWING CANVAS */
+#drawCanvas{position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;cursor:crosshair;}
+#drawCanvas.tool-none{cursor:default;}
+#drawCanvas.tool-hline{cursor:row-resize;}
+#drawCanvas.tool-vline{cursor:col-resize;}
+#drawCanvas.tool-trend,#drawCanvas.tool-fib{cursor:crosshair;}
+#drawCanvas.tool-rect{cursor:cell;}
+#drawCanvas.tool-text{cursor:text;}
+
+/* DRAWING TOOL FLOATING LABEL */
+#drawToolLabel{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  background:rgba(0,0,0,0.85);border:1px solid #2a2a2a;color:#c5a059;
+  padding:3px 10px;border-radius:3px;font-size:0.55rem;font-weight:bold;
+  letter-spacing:1px;pointer-events:none;z-index:20;display:none;transition:opacity 0.2s;}
+
+/* FOOTER */
+.algo-footer{background:#020202;border-top:1px solid #0d0d0d;padding:16px 20px;flex-shrink:0;font-size:0.55rem;line-height:1.9;color:#333;}
+.algo-footer h4{color:#444;letter-spacing:3px;font-size:0.55rem;margin-bottom:6px;margin-top:10px;}
+.algo-footer h4:first-child{margin-top:0;}
+.algo-footer span.tag{display:inline-block;background:#0a0a0a;border:1px solid #1a1a1a;border-radius:2px;padding:1px 6px;margin:1px;color:#555;font-family:monospace;font-size:0.52rem;}
+.algo-footer a{color:#333;text-decoration:none;}
+.footer-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.footer-col h4{color:#555;}
+.footer-badge{display:inline-block;padding:2px 6px;border-radius:2px;font-size:0.48rem;font-weight:bold;letter-spacing:1px;margin-right:4px;}
+.fb-gold{background:#0a0800;border:1px solid var(--gold);color:var(--gold);}
+.fb-green{background:#020d02;border:1px solid #00c805;color:#00c805;}
+.fb-blue{background:#010a1a;border:1px solid #4a9eff;color:#4a9eff);}
+.fb-purple{background:#0d0020;border:1px solid #9b59b6;color:#9b59b6;}
 
 ::-webkit-scrollbar{width:3px;height:3px;}
 ::-webkit-scrollbar-track{background:#060606;}
@@ -183,7 +264,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
 
 <!-- ══ TOP BAR ══ -->
 <div class="topbar">
-  <div class="topbar-logo">⚡ ISI ALGO</div>
+  <div class="topbar-logo" style="display:flex;align-items:center;gap:7px;"><img src="logo-icon.png" style="height:28px;width:28px;border-radius:7px;object-fit:cover;box-shadow:0 0 10px rgba(197,160,89,0.2);" onerror="this.style.display='none'">⚡ ISI ALGO</div>
 
   <select class="sym-selector" id="symSelect" onchange="changeSymbol(this.value)">
     <option value="XAUUSD">XAUUSD</option>
@@ -200,9 +281,13 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
     <button class="tf-btn" onclick="changeTF(this,'1')">M1</button>
     <button class="tf-btn" onclick="changeTF(this,'5')">M5</button>
     <button class="tf-btn on" onclick="changeTF(this,'15')">M15</button>
+    <button class="tf-btn" onclick="changeTF(this,'30')">M30</button>
     <button class="tf-btn" onclick="changeTF(this,'60')">H1</button>
+    <button class="tf-btn" onclick="changeTF(this,'120')">H2</button>
     <button class="tf-btn" onclick="changeTF(this,'240')">H4</button>
     <button class="tf-btn" onclick="changeTF(this,'1440')">D1</button>
+    <button class="tf-btn" onclick="changeTF(this,'10080')">W1</button>
+    <button class="tf-btn" onclick="changeTF(this,'43200')">MN</button>
   </div>
 
   <span class="status-pill pill-off" id="fbPill">● FB</span>
@@ -214,10 +299,10 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
 
   <div class="topbar-right">
     <span id="liveClock"></span>
-    <a href="index.html" class="nav-link">TERMINAL</a>
-    <a href="preentry.html" class="nav-link">PRE-ENTRY</a>
-    <a href="monitoring.html" class="nav-link">MONITORING</a>
-    <a href="Settings.html" class="nav-link">SETTINGS</a>
+    <a href="index.html" class="nav-link" target="_blank"TERMINAL</a>
+    <a href="preentry.html" class="nav-link" target="_blank"PRE-ENTRY</a>
+    <a href="monitoring.html" class="nav-link" target="_blank"MONITORING</a>
+    <a href="Settings.html" class="nav-link" target="_blank"SETTINGS</a>
   </div>
 </div>
 
@@ -227,17 +312,34 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
   <!-- CHART PANEL -->
   <div class="chart-panel">
     <div class="chart-toolbar">
-      <button class="toolbar-btn on" id="sigLineBtn" onclick="toggleLayer('sig')" style="border-color:#9b59b6;color:#9b59b6;">📍 SIGNAL LINES</button>
-      <button class="toolbar-btn on" id="obLineBtn"  onclick="toggleLayer('ob')"  style="border-color:#c5a059;color:#c5a059;">📦 ORDER BLOCKS</button>
-      <button class="toolbar-btn on" id="fvgLineBtn" onclick="toggleLayer('fvg')" style="border-color:#4a9eff;color:#4a9eff;">◈ FVG</button>
-      <button class="toolbar-btn on" id="liqLineBtn" onclick="toggleLayer('liq')" style="border-color:#ff8c00;color:#ff8c00;">💧 LIQUIDITY</button>
-      <div style="margin-left:auto;font-size:0.5rem;color:#222;">TradingView Lightweight Charts v4</div>
+      <!-- ICT/SMC Layers -->
+      <button class="toolbar-btn on" id="sigLineBtn" onclick="toggleLayer('sig')"    style="border-color:#9b59b6;color:#9b59b6;">📍 SIG</button>
+      <button class="toolbar-btn on" id="obLineBtn"  onclick="toggleLayer('ob')"     style="border-color:#c5a059;color:#c5a059;">📦 OB</button>
+      <button class="toolbar-btn on" id="fvgLineBtn" onclick="toggleLayer('fvg')"    style="border-color:#4a9eff;color:#4a9eff;">◈ FVG</button>
+      <button class="toolbar-btn on" id="liqLineBtn" onclick="toggleLayer('liq')"    style="border-color:#ff8c00;color:#ff8c00;">💧 LIQ</button>
+      <button class="toolbar-btn on" id="bosLineBtn" onclick="toggleLayer('bos')"    style="border-color:#00ff88;color:#00ff88;">⚡ BOS</button>
+      <button class="toolbar-btn on" id="ewLineBtn"  onclick="toggleLayer('ew')"     style="border-color:#ff6bb5;color:#ff6bb5;">〜 EW</button>
+      <div class="toolbar-divider"></div>
+      <!-- Drawing Tools -->
+      <button class="toolbar-btn" id="dtNone"   onclick="setDrawTool('none')"     title="No Tool (Esc)" style="color:#555;">✕</button>
+      <button class="toolbar-btn" id="dtHline"  onclick="setDrawTool('hline')"    title="Horizontal Line" style="color:#888;">─</button>
+      <button class="toolbar-btn" id="dtVline"  onclick="setDrawTool('vline')"    title="Vertical Line" style="color:#888;">│</button>
+      <button class="toolbar-btn" id="dtTrend"  onclick="setDrawTool('trend')"    title="Trendline" style="color:#888;">╱</button>
+      <button class="toolbar-btn" id="dtRect"   onclick="setDrawTool('rect')"     title="Rectangle" style="color:#888;">▭</button>
+      <button class="toolbar-btn" id="dtFib"    onclick="setDrawTool('fib')"      title="Fibonacci" style="color:#c5a059;">φ</button>
+      <button class="toolbar-btn" id="dtText"   onclick="setDrawTool('text')"     title="Text Label" style="color:#888;">T</button>
+      <button class="toolbar-btn" id="dtClear"  onclick="clearDrawings()"         title="Clear All Drawings" style="color:#ff3b3b;">🗑</button>
+      <div style="margin-left:auto;font-size:0.45rem;color:#1a1a1a;white-space:nowrap;">ISI ALGO v6</div>
     </div>
     <div class="chart-wrap">
       <div id="tvChart"></div>
+      <canvas id="drawCanvas" class="tool-none"></canvas>
+      <div id="drawToolLabel"></div>
       <div class="chart-overlay">
         <div class="overlay-badge" id="symBadge">XAUUSD · M15</div>
         <div class="overlay-badge" id="sessBadge" style="color:#333;">SESSION: —</div>
+        <div class="overlay-badge" id="ewBadge" style="display:none;color:#ff6bb5;">EW: —</div>
+        <div class="overlay-badge" id="bosBadge" style="display:none;color:#00ff88;">STRUCTURE: —</div>
       </div>
     </div>
   </div>
@@ -568,7 +670,7 @@ body{background:var(--bg);color:#e0e0e0;font-family:'Segoe UI',sans-serif;height
   <span style="margin-left:auto;" id="sessSt">Session: —</span>
 </div>
 
-<div class="toast" id="toast"></div>
+
 
 <!-- ════════════════════════════════════════
      SCRIPT
@@ -581,7 +683,7 @@ import { getDatabase, ref, onValue, update, push as fbPush } from "https://www.g
 let db = null, chart = null, candleSeries = null;
 let currentSym = 'XAUUSD', currentTF = '15';
 let orderDir = 'BUY', orderType = 'MARKET';
-let layers = { sig:true, ob:true, fvg:true, liq:true };
+let layers = { sig:true, ob:true, fvg:true, liq:true, bos:true, ew:true };
 let sigSeriesList = [];
 let lastPrice = 3280;  // Updated — real price fetched on load
 let lastSignals = [];
@@ -678,12 +780,16 @@ const YF_SYM = {
 
 // TF map: our tf string → Yahoo interval/range
 const YF_TF = {
-  '1':    { interval:'1m',  range:'1d'  },
-  '5':    { interval:'5m',  range:'5d'  },
-  '15':   { interval:'15m', range:'5d'  },
-  '60':   { interval:'60m', range:'1mo' },
-  '240':  { interval:'60m', range:'3mo' },  // Yahoo max 60m for intraday
-  '1440': { interval:'1d',  range:'1y'  },
+  '1':     { interval:'1m',  range:'1d'   },
+  '5':     { interval:'5m',  range:'5d'   },
+  '15':    { interval:'15m', range:'5d'   },
+  '30':    { interval:'30m', range:'5d'   },
+  '60':    { interval:'60m', range:'1mo'  },
+  '120':   { interval:'60m', range:'2mo'  },
+  '240':   { interval:'60m', range:'3mo'  },
+  '1440':  { interval:'1d',  range:'1y'   },
+  '10080': { interval:'1wk', range:'5y'   },
+  '43200': { interval:'1mo', range:'10y'  },
 };
 
 // Decimal places per symbol
@@ -705,6 +811,8 @@ async function fetchYFCandles(sym, tf) {
   const corsProxies = [
     `https://corsproxy.io/?${encodeURIComponent(url)}`,
     `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    `https://thingproxy.freeboard.io/fetch/${url}`,
+    `https://proxy.cors.sh/${url}`,
   ];
 
   for (const endpoint of corsProxies) {
@@ -788,10 +896,23 @@ let _tickInterval = null;
 async function loadCandles() {
   if (_tickInterval) { clearInterval(_tickInterval); _tickInterval = null; }
 
+  // Ensure chart is ready before loading
+  if (!candleSeries || !chart) {
+    console.warn('[Chart] candleSeries not ready, retrying in 300ms');
+    setTimeout(loadCandles, 300);
+    return;
+  }
+  // Ensure chart has visible size
+  const wrap = document.getElementById('tvChart');
+  if (wrap && wrap.clientWidth < 10) {
+    setTimeout(loadCandles, 300);
+    return;
+  }
+
   // Show loading state
   document.getElementById('livePrice').textContent = '...';
   document.getElementById('symBadge').textContent = currentSym + ' · ' +
-    (currentTF==='1440'?'D1':currentTF==='240'?'H4':currentTF==='60'?'H1':'M'+currentTF);
+    (currentTF==='43200'?'MN':currentTF==='10080'?'W1':currentTF==='1440'?'D1':currentTF==='240'?'H4':currentTF==='120'?'H2':currentTF==='60'?'H1':currentTF==='30'?'M30':'M'+currentTF);
 
   let data = null;
   let usedReal = false;
@@ -804,6 +925,9 @@ async function loadCandles() {
     lastPrice = data[data.length-1].close;
     const prev = data[data.length-2]?.close || lastPrice;
     updatePrice(lastPrice, lastPrice - prev);
+    // ── ICT Analysis ──
+    clearICTLayers();
+    setTimeout(() => runICTAnalysis(data), 200);
   } else {
     // Fallback: get real price, build fake candles from it
     const base = await fetchFallbackPrice(currentSym);
@@ -812,6 +936,9 @@ async function loadCandles() {
     candleSeries.setData(data);
     lastPrice = data[data.length-1].close;
     updatePrice(lastPrice, lastPrice - data[data.length-2].close);
+    // ── ICT Analysis on fallback ──
+    clearICTLayers();
+    setTimeout(() => runICTAnalysis(data), 200);
     console.warn(`[Chart] Real candle data unavailable for ${currentSym} — using realistic simulation from live price ${base}`);
   }
 
@@ -896,13 +1023,16 @@ function redrawSigLines() {
 }
 
 window.toggleLayer = function(name) {
+  if (!(name in layers)) layers[name] = true;
   layers[name] = !layers[name];
   const btn = document.getElementById(name+'LineBtn');
-  btn.classList.toggle('off', !layers[name]);
-  btn.classList.toggle('on',   layers[name]);
-  if (name==='sig') {
-    if (layers.sig) redrawSigLines();
-    else clearSigLines();
+  if (btn) { btn.classList.toggle('off', !layers[name]); btn.classList.toggle('on', layers[name]); }
+  if (name === 'sig') {
+    if (layers.sig) redrawSigLines(); else clearSigLines();
+  } else if (['ob','fvg','liq','bos','ew'].includes(name) && _ictData) {
+    // Re-run ICT analysis respecting current layer toggles
+    clearICTLayers();
+    setTimeout(() => runICTAnalysis(_ictData), 50);
   }
 };
 
@@ -1672,9 +1802,636 @@ window.onNodeSelect = function(silent) {
 };
 
 
+
+// ══════════════════════════════════════════════════════════════════
+// ICT / SMC ANALYSIS ENGINE
+// Order Blocks · FVG · Liquidity · BOS/CHoCH · Elliott Wave
+// ══════════════════════════════════════════════════════════════════
+
+let _ictData = null;  // cached candle data for analysis
+let _ictSeries = {}; // { bos:[], ew:[], ob:[], fvg:[], liq:[] } — drawn series
+
+// ── Run full ICT analysis on current candle data ──
+function runICTAnalysis(candles) {
+  if (!candles || candles.length < 20) return;
+  _ictData = candles;
+
+  if (layers.ob)  drawOrderBlocks(candles);
+  if (layers.fvg) drawFVGs(candles);
+  if (layers.liq) drawLiquidityLevels(candles);
+  if (layers.bos) drawBOSCHOCH(candles);
+  if (layers.ew)  drawElliottWave(candles);
+}
+
+// ── ORDER BLOCKS ──
+// Bullish OB: last bearish candle before a strong bullish move
+// Bearish OB: last bullish candle before a strong bearish move
+function drawOrderBlocks(candles) {
+  if (!candleSeries || !chart) return;
+  // Remove old OB series
+  (_ictSeries.ob_rects || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _ictSeries.ob_rects = [];
+
+  const n = candles.length;
+  for (let i = 5; i < n - 3; i++) {
+    const c0 = candles[i];
+    // Check for strong move after this candle
+    const nextMove = candles[i+1].close - candles[i+1].open;
+    const bodySize = Math.abs(c0.close - c0.open);
+    const atr = calcATR(candles, i, 14);
+
+    // Bullish OB: bearish candle followed by strong bull move
+    if (c0.close < c0.open && nextMove > atr * 0.8 && bodySize > atr * 0.3) {
+      const s = chart.addHistogramSeries({
+        color: 'rgba(0,200,5,0.07)',
+        lineWidth: 0,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        priceScaleId: 'right',
+      });
+      s.setData([
+        { time: c0.time, value: c0.high },
+        { time: candles[Math.min(i+8, n-1)].time, value: c0.high },
+      ]);
+      _ictSeries.ob_rects.push(s);
+
+      // OB line at low
+      const ls = chart.addLineSeries({
+        color: 'rgba(0,200,5,0.5)', lineWidth: 1, lineStyle: 2,
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      ls.setData([
+        { time: c0.time, value: c0.low },
+        { time: candles[Math.min(i+8, n-1)].time, value: c0.low },
+      ]);
+      _ictSeries.ob_rects.push(ls);
+    }
+
+    // Bearish OB: bullish candle followed by strong bear move
+    if (c0.close > c0.open && nextMove < -atr * 0.8 && bodySize > atr * 0.3) {
+      const ls2 = chart.addLineSeries({
+        color: 'rgba(255,59,59,0.5)', lineWidth: 1, lineStyle: 2,
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      ls2.setData([
+        { time: c0.time, value: c0.high },
+        { time: candles[Math.min(i+8, n-1)].time, value: c0.high },
+      ]);
+      _ictSeries.ob_rects.push(ls2);
+    }
+  }
+}
+
+// ── FAIR VALUE GAPS (FVG / Imbalance) ──
+// Bullish FVG: candle[i-1].high < candle[i+1].low (gap between)
+// Bearish FVG: candle[i-1].low > candle[i+1].high
+function drawFVGs(candles) {
+  if (!candleSeries || !chart) return;
+  (_ictSeries.fvg_lines || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _ictSeries.fvg_lines = [];
+
+  const n = candles.length;
+  const atr = calcATR(candles, n-1, 14);
+
+  for (let i = 1; i < n - 1; i++) {
+    const prev = candles[i-1], curr = candles[i], next = candles[i+1];
+    const fvgMin = atr * 0.15;  // ignore tiny gaps
+
+    // Bullish FVG
+    if (next.low - prev.high > fvgMin) {
+      const mid = (next.low + prev.high) / 2;
+      const ls = chart.addLineSeries({
+        color: 'rgba(74,158,255,0.6)', lineWidth: 1, lineStyle: 1,
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      const endT = candles[Math.min(i+12, n-1)].time;
+      ls.setData([{ time: curr.time, value: mid }, { time: endT, value: mid }]);
+      _ictSeries.fvg_lines.push(ls);
+    }
+    // Bearish FVG
+    if (prev.low - next.high > fvgMin) {
+      const mid = (prev.low + next.high) / 2;
+      const ls = chart.addLineSeries({
+        color: 'rgba(255,139,0,0.6)', lineWidth: 1, lineStyle: 1,
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      const endT = candles[Math.min(i+12, n-1)].time;
+      ls.setData([{ time: curr.time, value: mid }, { time: endT, value: mid }]);
+      _ictSeries.fvg_lines.push(ls);
+    }
+  }
+}
+
+// ── LIQUIDITY LEVELS ──
+// Equal highs/lows = stop clusters. Swing highs/lows = liquidity pools
+function drawLiquidityLevels(candles) {
+  if (!candleSeries || !chart) return;
+  (_ictSeries.liq_lines || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _ictSeries.liq_lines = [];
+
+  const n = candles.length;
+  const lookback = Math.min(50, n - 1);
+  const atr = calcATR(candles, n-1, 14);
+  const tolerance = atr * 0.08;
+
+  // Find swing highs/lows
+  const swingHighs = [], swingLows = [];
+  for (let i = 3; i < n - 3; i++) {
+    const h = candles[i].high;
+    const l = candles[i].low;
+    // Swing high: higher than 3 candles on each side
+    if (h > candles[i-1].high && h > candles[i-2].high && h > candles[i+1].high && h > candles[i+2].high)
+      swingHighs.push({ time: candles[i].time, price: h, idx: i });
+    if (l < candles[i-1].low && l < candles[i-2].low && l < candles[i+1].low && l < candles[i+2].low)
+      swingLows.push({ time: candles[i].time, price: l, idx: i });
+  }
+
+  // Draw recent swing highs as sell-side liquidity
+  swingHighs.slice(-6).forEach(sh => {
+    const ls = chart.addLineSeries({
+      color: 'rgba(255,139,0,0.4)', lineWidth: 1, lineStyle: 3,
+      priceLineVisible: false, lastValueVisible: false,
+    });
+    const endT = candles[n-1].time;
+    ls.setData([{ time: sh.time, value: sh.price }, { time: endT, value: sh.price }]);
+    _ictSeries.liq_lines.push(ls);
+  });
+
+  // Draw recent swing lows as buy-side liquidity
+  swingLows.slice(-6).forEach(sl => {
+    const ls = chart.addLineSeries({
+      color: 'rgba(197,160,89,0.4)', lineWidth: 1, lineStyle: 3,
+      priceLineVisible: false, lastValueVisible: false,
+    });
+    const endT = candles[n-1].time;
+    ls.setData([{ time: sl.time, value: sl.price }, { time: endT, value: sl.price }]);
+    _ictSeries.liq_lines.push(ls);
+  });
+}
+
+// ── BREAK OF STRUCTURE + CHoCH ──
+// BOS: price breaks previous swing high/low in trend direction
+// CHoCH: price breaks previous swing in OPPOSITE direction = potential reversal
+function drawBOSCHOCH(candles) {
+  if (!candleSeries || !chart) return;
+  (_ictSeries.bos_lines || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _ictSeries.bos_lines = [];
+
+  const n = candles.length;
+  let lastSwingHigh = null, lastSwingLow = null;
+  let trend = 'bull';  // initial
+  const bosLabels = [];
+  const chochLabels = [];
+
+  for (let i = 3; i < n - 2; i++) {
+    const c = candles[i];
+    const isSwingHigh = c.high > candles[i-1].high && c.high > candles[i-2].high &&
+                        c.high > candles[i+1].high && c.high > candles[i+2].high;
+    const isSwingLow  = c.low < candles[i-1].low && c.low < candles[i-2].low &&
+                        c.low < candles[i+1].low && c.low < candles[i+2].low;
+
+    if (isSwingHigh) {
+      if (lastSwingHigh !== null) {
+        if (c.high > lastSwingHigh.price) {
+          // BOS up
+          bosLabels.push({ time: c.time, price: c.high, type: 'BOS↑', color: '#00ff88' });
+        } else if (trend === 'bull') {
+          // CHoCH — bearish shift
+          chochLabels.push({ time: c.time, price: c.high, type: 'CHoCH↓', color: '#ff6b6b' });
+          trend = 'bear';
+        }
+      }
+      lastSwingHigh = { time: c.time, price: c.high, idx: i };
+    }
+    if (isSwingLow) {
+      if (lastSwingLow !== null) {
+        if (c.low < lastSwingLow.price) {
+          // BOS down
+          bosLabels.push({ time: c.time, price: c.low, type: 'BOS↓', color: '#ff6b6b' });
+        } else if (trend === 'bear') {
+          // CHoCH — bullish shift
+          chochLabels.push({ time: c.time, price: c.low, type: 'CHoCH↑', color: '#00ff88' });
+          trend = 'bull';
+        }
+      }
+      lastSwingLow = { time: c.time, price: c.low, idx: i };
+    }
+  }
+
+  // Draw BOS/CHoCH markers as price lines on main series
+  [...bosLabels.slice(-5), ...chochLabels.slice(-3)].forEach(lbl => {
+    const ls = chart.addLineSeries({
+      color: lbl.color, lineWidth: 1, lineStyle: 0,
+      priceLineVisible: false, lastValueVisible: true,
+      title: lbl.type,
+    });
+    const endT = candles[n-1].time;
+    ls.setData([{ time: lbl.time, value: lbl.price }, { time: endT, value: lbl.price }]);
+    _ictSeries.bos_lines.push(ls);
+  });
+
+  // Update badge
+  const last = [...bosLabels, ...chochLabels].sort((a,b) => a.time - b.time).slice(-1)[0];
+  const badge = document.getElementById('bosBadge');
+  if (badge && last) {
+    badge.style.display = 'block';
+    badge.style.color = last.color;
+    badge.textContent = 'STRUCTURE: ' + last.type;
+  }
+}
+
+// ── ELLIOTT WAVE DETECTION ──
+// Simplified 5-wave impulse detection using swing pivots
+// Wave 1-5 up or down, then ABC correction
+function drawElliottWave(candles) {
+  if (!candleSeries || !chart) return;
+  (_ictSeries.ew_lines || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _ictSeries.ew_lines = [];
+
+  const n = candles.length;
+  const atr = calcATR(candles, n-1, 14);
+
+  // Find significant pivots (swing highs and lows alternating)
+  const pivots = findPivots(candles, 5);
+
+  if (pivots.length < 6) return;
+
+  // Try to fit Elliott 5-wave: need at least 6 pivots (5 waves = 6 points)
+  // Look at last 8-10 pivots
+  const recent = pivots.slice(-10);
+  const waves = fitElliottWave(recent, candles, atr);
+
+  if (!waves || waves.length < 6) return;
+
+  // Draw wave lines
+  const waveColors = ['#ff6bb5','#ff6bb5','#ff6bb5','#ff6bb5','#ff6bb5'];
+  const waveLabels = ['0','1','2','3','4','5'];
+  const wColor = 'rgba(255,107,181,0.8)';
+
+  for (let i = 0; i < waves.length - 1; i++) {
+    const ls = chart.addLineSeries({
+      color: wColor, lineWidth: 1, lineStyle: 0,
+      priceLineVisible: false, lastValueVisible: false,
+      title: waveLabels[i+1],
+    });
+    ls.setData([
+      { time: waves[i].time, value: waves[i].price },
+      { time: waves[i+1].time, value: waves[i+1].price },
+    ]);
+    _ictSeries.ew_lines.push(ls);
+  }
+
+  // Update badge
+  const badge = document.getElementById('ewBadge');
+  if (badge && waves.length >= 2) {
+    const lastWave = waves.length - 1;
+    const isUp = waves[1].price > waves[0].price;
+    badge.style.display = 'block';
+    badge.textContent = `EW: Wave ${lastWave} ${isUp ? '↑' : '↓'} (${waves.length-1}/5)`;
+  }
+}
+
+// Find swing pivots (alternating highs and lows)
+function findPivots(candles, lookback) {
+  const pivots = [];
+  const n = candles.length;
+  let lastType = null;
+
+  for (let i = lookback; i < n - lookback; i++) {
+    const c = candles[i];
+    let isHigh = true, isLow = true;
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= c.high) isHigh = false;
+      if (candles[j].low  <= c.low)  isLow  = false;
+    }
+    if (isHigh && lastType !== 'H') {
+      pivots.push({ time: c.time, price: c.high, type: 'H', idx: i });
+      lastType = 'H';
+    } else if (isLow && lastType !== 'L') {
+      pivots.push({ time: c.time, price: c.low, type: 'L', idx: i });
+      lastType = 'L';
+    }
+  }
+  return pivots;
+}
+
+// Attempt to fit Elliott 5-wave impulse to recent pivots
+function fitElliottWave(pivots, candles, atr) {
+  if (pivots.length < 6) return null;
+  // Try bullish 5-wave: L H L H L H (low-high-low-high-low-high)
+  // Try bearish 5-wave: H L H L H L
+  const last6 = pivots.slice(-6);
+
+  const isBullish = last6[0].type === 'L' && last6[1].type === 'H' &&
+                    last6[2].type === 'L' && last6[3].type === 'H' &&
+                    last6[4].type === 'L' && last6[5].type === 'H';
+
+  const isBearish = last6[0].type === 'H' && last6[1].type === 'L' &&
+                    last6[2].type === 'H' && last6[3].type === 'L' &&
+                    last6[4].type === 'H' && last6[5].type === 'L';
+
+  if (!isBullish && !isBearish) {
+    // Try 4-wave partial
+    const last5 = pivots.slice(-5);
+    const part4 = (last5[0].type === 'L' && last5[1].type === 'H' && last5[2].type === 'L' && last5[3].type === 'H' && last5[4].type === 'L') ||
+                  (last5[0].type === 'H' && last5[1].type === 'L' && last5[2].type === 'H' && last5[3].type === 'L' && last5[4].type === 'H');
+    return part4 ? last5 : null;
+  }
+
+  // Validate Elliott rules (basic)
+  if (isBullish) {
+    // Rule: Wave 3 cannot be shortest; Wave 2 doesn't retrace past Wave 1 start
+    const w1 = last6[1].price - last6[0].price;
+    const w3 = last6[3].price - last6[2].price;
+    const w5 = last6[5].price - last6[4].price;
+    if (w3 < 0 || w1 < 0 || w5 < 0) return null;
+    if (last6[2].price < last6[0].price) return null;  // Wave 2 below start
+    if (last6[4].price < last6[2].price) return null;  // Wave 4 below Wave 2
+  }
+  if (isBearish) {
+    const w1 = last6[0].price - last6[1].price;
+    const w3 = last6[2].price - last6[3].price;
+    if (w1 < 0 || w3 < 0) return null;
+    if (last6[2].price > last6[0].price) return null;
+    if (last6[4].price > last6[2].price) return null;
+  }
+
+  return last6;
+}
+
+// ── ATR calculation ──
+function calcATR(candles, idx, period) {
+  const n = Math.min(period, idx);
+  if (n < 2) return Math.abs(candles[idx].high - candles[idx].low);
+  let sum = 0;
+  for (let i = idx - n + 1; i <= idx; i++) {
+    const prev = candles[i-1] || candles[i];
+    const tr = Math.max(
+      candles[i].high - candles[i].low,
+      Math.abs(candles[i].high - prev.close),
+      Math.abs(candles[i].low  - prev.close)
+    );
+    sum += tr;
+  }
+  return sum / n;
+}
+
+// ── Clear all ICT layers ──
+function clearICTLayers() {
+  Object.values(_ictSeries).forEach(arr => {
+    (arr || []).forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  });
+  _ictSeries = {};
+  ['ewBadge','bosBadge'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════
+// DRAWING TOOLS ENGINE
+// Horizontal line · Vertical line · Trendline · Rectangle · Fib · Text
+// ══════════════════════════════════════════════════════════════════
+
+let _drawTool = 'none';       // active tool
+let _drawState = 'idle';      // idle | first_point
+let _drawStart = null;        // { x, y, price, time }
+let _drawings = [];           // all saved drawings
+let _drawSeries = [];         // LW chart series for drawings
+let _drawCtx = null;          // canvas 2D context
+let _drawCanvas = null;
+
+function initDrawCanvas() {
+  _drawCanvas = document.getElementById('drawCanvas');
+  if (!_drawCanvas) return;
+  _drawCtx = _drawCanvas.getContext('2d');
+
+  // Size canvas to match chart
+  function resizeCanvas() {
+    const wrap = document.getElementById('tvChart');
+    if (wrap) {
+      _drawCanvas.width  = wrap.clientWidth;
+      _drawCanvas.height = wrap.clientHeight;
+    }
+  }
+  resizeCanvas();
+  new ResizeObserver(resizeCanvas).observe(document.getElementById('tvChart'));
+
+  // Mouse events
+  _drawCanvas.addEventListener('mousedown', onDrawMouseDown);
+  _drawCanvas.addEventListener('mousemove', onDrawMouseMove);
+  _drawCanvas.addEventListener('mouseup',   onDrawMouseUp);
+  _drawCanvas.addEventListener('dblclick',  onDrawDblClick);
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') setDrawTool('none');
+    if ((e.key === 'Delete' || e.key === 'Backspace') && _drawTool === 'none') clearDrawings();
+  });
+}
+
+window.setDrawTool = function(tool) {
+  _drawTool = tool;
+  _drawState = 'idle';
+  _drawStart = null;
+
+  // Update button styles
+  document.querySelectorAll('[id^="dt"]').forEach(btn => btn.classList.remove('draw-active'));
+  const btn = document.getElementById('dt' + (tool === 'none' ? 'None' : tool.charAt(0).toUpperCase() + tool.slice(1)));
+  if (btn) btn.classList.add('draw-active');
+
+  // Update canvas cursor
+  if (_drawCanvas) {
+    _drawCanvas.className = 'tool-' + tool;
+    _drawCanvas.style.pointerEvents = tool === 'none' ? 'none' : 'all';
+  }
+
+  // Update floating label
+  const label = document.getElementById('drawToolLabel');
+  const names = { none:'', hline:'HORIZONTAL LINE — click to place', vline:'VERTICAL LINE — click to place',
+    trend:'TRENDLINE — click start, click end', rect:'RECTANGLE — click and drag',
+    fib:'FIBONACCI — click high, click low', text:'TEXT — click to place label' };
+  if (label) {
+    label.textContent = names[tool] || '';
+    label.style.display = tool === 'none' ? 'none' : 'block';
+  }
+};
+
+window.clearDrawings = function() {
+  _drawings = [];
+  _drawSeries.forEach(s => { try { chart.removeSeries(s); } catch(e){} });
+  _drawSeries = [];
+  if (_drawCtx && _drawCanvas) _drawCtx.clearRect(0, 0, _drawCanvas.width, _drawCanvas.height);
+  toast('🗑 Drawings cleared');
+};
+
+// Convert canvas pixel to chart price+time
+function canvasToPriceTime(x, y) {
+  if (!chart) return null;
+  try {
+    const price = chart.priceScale('right').coordinateToPrice(y);
+    const time  = chart.timeScale().coordinateToLogical(x);
+    if (price === null || time === null) return null;
+    return { x, y, price, time };
+  } catch(e) { return null; }
+}
+
+function priceTimeToCanvas(price, time) {
+  if (!chart) return null;
+  try {
+    const y = chart.priceScale('right').priceToCoordinate(price);
+    const x = chart.timeScale().logicalToCoordinate(time);
+    return { x, y };
+  } catch(e) { return null; }
+}
+
+function onDrawMouseDown(e) {
+  if (_drawTool === 'none') return;
+  const pt = canvasToPriceTime(e.offsetX, e.offsetY);
+  if (!pt) return;
+
+  if (_drawTool === 'hline') {
+    commitDrawing({ type:'hline', price: pt.price });
+    return;
+  }
+  if (_drawTool === 'vline') {
+    commitDrawing({ type:'vline', time: pt.time, price: pt.price });
+    return;
+  }
+  if (_drawTool === 'text') {
+    const txt = prompt('Enter label text:');
+    if (txt) commitDrawing({ type:'text', price: pt.price, time: pt.time, text: txt });
+    return;
+  }
+
+  // Two-click tools: trend, rect, fib
+  if (_drawState === 'idle') {
+    _drawStart = pt;
+    _drawState = 'first_point';
+  } else {
+    commitDrawing({ type: _drawTool, p1: _drawStart, p2: pt });
+    _drawState = 'idle';
+    _drawStart = null;
+  }
+}
+
+function onDrawMouseMove(e) {
+  if (_drawState !== 'first_point' || !_drawCtx || !_drawCanvas) return;
+  const pt = canvasToPriceTime(e.offsetX, e.offsetY);
+  if (!pt || !_drawStart) return;
+
+  _drawCtx.clearRect(0, 0, _drawCanvas.width, _drawCanvas.height);
+  _drawCtx.strokeStyle = '#c5a059';
+  _drawCtx.lineWidth = 1;
+  _drawCtx.setLineDash([4, 3]);
+  _drawCtx.beginPath();
+
+  if (_drawTool === 'trend' || _drawTool === 'fib') {
+    _drawCtx.moveTo(_drawStart.x, _drawStart.y);
+    _drawCtx.lineTo(e.offsetX, e.offsetY);
+  } else if (_drawTool === 'rect') {
+    _drawCtx.rect(_drawStart.x, _drawStart.y, e.offsetX - _drawStart.x, e.offsetY - _drawStart.y);
+  }
+  _drawCtx.stroke();
+  _drawCtx.setLineDash([]);
+}
+
+function onDrawMouseUp(e) { /* handled in mousedown */ }
+function onDrawDblClick(e) { _drawState = 'idle'; _drawStart = null; }
+
+function commitDrawing(drawing) {
+  _drawings.push(drawing);
+  renderDrawingOnChart(drawing);
+  if (_drawCtx && _drawCanvas) _drawCtx.clearRect(0, 0, _drawCanvas.width, _drawCanvas.height);
+}
+
+function renderDrawingOnChart(d) {
+  if (!chart || !_ictData || _ictData.length === 0) return;
+  const last = _ictData[_ictData.length - 1];
+  const first = _ictData[0];
+
+  try {
+    if (d.type === 'hline') {
+      const s = chart.addLineSeries({
+        color: '#c5a059', lineWidth: 1, lineStyle: 0,
+        priceLineVisible: false, lastValueVisible: true, title: '─',
+      });
+      s.setData([{ time: first.time, value: d.price }, { time: last.time, value: d.price }]);
+      _drawSeries.push(s);
+
+    } else if (d.type === 'vline') {
+      // Approximate vertical as very narrow price line
+      const s = chart.addLineSeries({
+        color: 'rgba(197,160,89,0.5)', lineWidth: 1, lineStyle: 2,
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      const hi = Math.max(..._ictData.map(c=>c.high));
+      const lo = Math.min(..._ictData.map(c=>c.low));
+      s.setData([{ time: d.time, value: hi }, { time: d.time + 1, value: lo }]);
+      _drawSeries.push(s);
+
+    } else if (d.type === 'trend') {
+      const s = chart.addLineSeries({
+        color: '#c5a059', lineWidth: 1, lineStyle: 0,
+        priceLineVisible: false, lastValueVisible: false, title: '╱',
+      });
+      s.setData([
+        { time: Math.min(d.p1.time, d.p2.time), value: d.p1.time <= d.p2.time ? d.p1.price : d.p2.price },
+        { time: Math.max(d.p1.time, d.p2.time), value: d.p1.time <= d.p2.time ? d.p2.price : d.p1.price },
+      ]);
+      _drawSeries.push(s);
+
+    } else if (d.type === 'fib') {
+      const hi = Math.max(d.p1.price, d.p2.price);
+      const lo = Math.min(d.p1.price, d.p2.price);
+      const range = hi - lo;
+      const t1 = Math.min(d.p1.time, d.p2.time);
+      const t2 = Math.max(d.p1.time, d.p2.time);
+      const levels = [0, 0.236, 0.382, 0.5, 0.618, 0.786, 1.0];
+      const fibColors = ['#555','#c5a059','#4a9eff','#ff6bb5','#4a9eff','#c5a059','#555'];
+      levels.forEach((lvl, idx) => {
+        const price = hi - range * lvl;
+        const s = chart.addLineSeries({
+          color: fibColors[idx], lineWidth: 1, lineStyle: 1,
+          priceLineVisible: false, lastValueVisible: true, title: `Fib ${(lvl*100).toFixed(1)}%`,
+        });
+        s.setData([{ time: t1, value: price }, { time: t2, value: price }]);
+        _drawSeries.push(s);
+      });
+
+    } else if (d.type === 'rect') {
+      const hiP = Math.max(d.p1.price, d.p2.price);
+      const loP = Math.min(d.p1.price, d.p2.price);
+      const t1  = Math.min(d.p1.time, d.p2.time);
+      const t2  = Math.max(d.p1.time, d.p2.time);
+      ['top','bot'].forEach((side, si) => {
+        const price = si === 0 ? hiP : loP;
+        const s = chart.addLineSeries({
+          color: 'rgba(197,160,89,0.6)', lineWidth: 1, lineStyle: 0,
+          priceLineVisible: false, lastValueVisible: false,
+        });
+        s.setData([{ time: t1, value: price }, { time: t2, value: price }]);
+        _drawSeries.push(s);
+      });
+
+    } else if (d.type === 'text') {
+      const s = chart.addLineSeries({
+        color: 'transparent', lineWidth: 0,
+        priceLineVisible: false, lastValueVisible: true, title: d.text,
+      });
+      s.setData([{ time: d.time, value: d.price }]);
+      _drawSeries.push(s);
+    }
+  } catch(e) { console.warn('Drawing render error:', e); }
+}
+
+// ── Hook into loadCandles to run ICT analysis after data loads ──
+const _origLoadCandles = window._loadCandlesHooked;
+
+
 // ── BOOT ──
 function _boot() {
   try { initChart(); } catch(e) { console.error('initChart error:', e); }
+  try { setTimeout(initDrawCanvas, 500); } catch(e) {}
   try { loadSaved(); } catch(e) { console.error('loadSaved error:', e); }
   try { loadClusterDropdown(); } catch(e) { console.error('loadClusterDropdown error:', e); }
   try { checkSession(); } catch(e) { console.error('checkSession error:', e); }
@@ -1700,5 +2457,66 @@ if (document.readyState === 'loading') {
 }
 </script>
 <script type="module" src="order-tracker.js"></script>
+
+<!-- ══════════════════════════════════════════════════════════
+     ISI ALGO ENGINE — FOOTER GUIDE
+══════════════════════════════════════════════════════════ -->
+<div class="algo-footer">
+  <div class="footer-grid">
+
+    <div class="footer-col">
+      <h4>🎯 PAGE OVERVIEW — ISI ALGO ENGINE</h4>
+      <div>ISI Algo Engine ek institutional-grade trading dashboard hai. Chart + Real-time signals + Multi-account order routing ek hi jagah. Python algo engine Firebase ke through connect hota hai aur MT5 / Custom API pe orders execute karta hai.</div>
+      <br>
+      <h4>📊 CHART — KAISE USE KAREIN</h4>
+      <div><span class="tag">Symbol</span> Top bar mein dropdown se symbol badlo — XAUUSD, EURUSD, NAS100, BTCUSD etc.</div>
+      <div><span class="tag">Timeframe</span> M1 · M5 · M15 · M30 · H1 · H2 · H4 · D1 · W1 · MN — click karke switch karo.</div>
+      <div><span class="tag">Data</span> Real Yahoo Finance data load hota hai. Agar CORS block ho toh realistic simulation fallback.</div>
+      <div><span class="tag">Live Tick</span> Har 2 second mein price update hoti hai — last candle live dikhta hai.</div>
+    </div>
+
+    <div class="footer-col">
+      <h4>📐 DRAWING TOOLS — CHART PE DRAW KARO</h4>
+      <div><span class="tag">─ H-Line</span> Click karo — horizontal level draw. Support/Resistance mark karo.</div>
+      <div><span class="tag">│ V-Line</span> Click karo — vertical time marker. Event/session boundary mark karo.</div>
+      <div><span class="tag">╱ Trend</span> Click start point → click end point — trendline draw hogi.</div>
+      <div><span class="tag">▭ Rect</span> Click drag — rectangle/zone draw. Order block ya range mark karo.</div>
+      <div><span class="tag">φ Fib</span> Click high → click low — Fibonacci levels auto-draw: 0.236, 0.382, 0.5, 0.618, 0.786.</div>
+      <div><span class="tag">T Text</span> Click karo → text type karo — chart pe label lagao.</div>
+      <div><span class="tag">🗑 Clear</span> Saari drawings ek baar mein hata do.</div>
+      <div><span class="tag">✕ None</span> Drawing mode off — normal chart interact karo.</div>
+      <br>
+      <h4>🔌 CONNECT TAB — MULTI ACCOUNT</h4>
+      <div>Settings mein banaye clusters/accounts yahan card form mein dikhenge. <span class="tag">⚡ SET ACTIVE</span> dabao — us account pe orders jaayenge. <span class="tag">📊 POSITIONS</span> se live balance/equity dekho.</div>
+    </div>
+
+    <div class="footer-col">
+      <h4>🧠 ICT / SMC LAYERS — CHART PE KYA DIKHTA HAI</h4>
+      <div><span class="fb-purple footer-badge">📍 SIG</span> Algo signals ka entry/SL/TP chart pe lines ke form mein.</div>
+      <div><span class="fb-gold footer-badge">📦 OB</span> Order Blocks — bullish (green) / bearish (red) zones jahan institutions ne position liya.</div>
+      <div><span class="fb-blue footer-badge">◈ FVG</span> Fair Value Gaps — imbalance zones. Price yahan wapas aata hai fill karne.</div>
+      <div style="margin-top:3px;"><span class="fb-gold footer-badge">💧 LIQ</span> Liquidity levels — swing highs/lows jahan stops hain. Institutions yahan sweep karte hain.</div>
+      <div><span class="fb-green footer-badge">⚡ BOS</span> Break of Structure + CHoCH — trend change ya continuation confirm karta hai.</div>
+      <div><span class="fb-purple footer-badge">〜 EW</span> Elliott Wave — 5-wave impulse + 3-wave correction auto-detection. Wave labels chart pe.</div>
+      <br>
+      <h4>📋 ORDER FLOW</h4>
+      <div>
+        <span class="tag">1.</span> Signal aaya → SIGNALS tab mein card dikhega.<br>
+        <span class="tag">2.</span> ✅ Approve karo → ORDER tab mein auto-fill.<br>
+        <span class="tag">3.</span> Account select karo → ▲ EXECUTE dabao.<br>
+        <span class="tag">4.</span> Firebase → Python engine → MT5/API execute.<br>
+        <span class="tag">5.</span> 📋 Order Tracker (bottom-right) mein status dekho.
+      </div>
+    </div>
+
+  </div>
+
+  <div style="margin-top:12px;padding-top:8px;border-top:1px solid #0d0d0d;display:flex;justify-content:space-between;align-items:center;">
+    <div style="color:#222;">ISI Institutional Terminal v6.0 · Algo Engine Module · <span style="color:#1a1a1a;">Real-time signals · Multi-broker execution · ICT/SMC analysis</span></div>
+    <div style="color:#1a1a1a;">Built for institutional trading. Use at your own risk. Not financial advice.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 </body>
 </html>

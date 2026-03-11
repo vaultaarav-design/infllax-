@@ -4,6 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ISI Live Terminal v6.0</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="favicon.ico" type="image/x-icon">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <meta name="theme-color" content="#c5a059">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="ISI Terminal">
+  <script>
+  // ISI Logo path for session lock
+  window.ISI_LOGO = 'logo-icon.png';
+  // Register service worker
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+  </script>
+  <script src="session-lock.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -332,7 +349,7 @@
 <!-- ===== MASTER HEADER ===== -->
 <header class="master-header">
     <div class="header-left">
-        <div class="header-title">ISI TERMINAL <span style="color:#444; font-size:0.62rem;">v6.0</span></div>
+        <div class="header-title"><img src="logo-icon.png" style="height:36px;width:36px;border-radius:8px;object-fit:cover;vertical-align:middle;margin-right:10px;box-shadow:0 2px 12px rgba(197,160,89,0.3);" onerror="this.style.display='none'">ISI TERMINAL <span style="color:#444; font-size:0.62rem;">v6.0</span></div>
         <div id="liveClock">--:-- IST</div>
     </div>
 
@@ -358,11 +375,11 @@
     </div>
 
     <div class="header-right">
-        <button class="btn-preentry" onclick="location.href='preentry.html'">🎯 PRE-ENTRY</button>
-        <button class="btn-monitoring" onclick="location.href='monitoring.html'">📊 MONITORING</button>
-        <button class="btn-setup" onclick="location.href='Settings.html'">⚙ SETUP</button>
+        <button class="btn-preentry" onclick="window.open('preentry.html','_blank')">🎯 PRE-ENTRY</button>
+        <button class="btn-monitoring" onclick="window.open('monitoring.html','_blank')">📊 MONITORING</button>
+        <button class="btn-setup" onclick="window.open('Settings.html','_blank')">⚙ SETUP</button>
     </div>
-<div style="position:fixed;bottom:28px;left:28px;z-index:9000;"><a href="algo.html" style="background:#0a0d08;border:1.5px solid #00c805;color:#00c805;padding:9px 16px;border-radius:50px;font-size:0.62rem;font-weight:bold;letter-spacing:1px;text-decoration:none;box-shadow:0 0 14px rgba(0,200,5,0.15);display:flex;align-items:center;gap:6px;">⚡ ALGO ENGINE</a></div></header>
+<div style="position:fixed;bottom:28px;left:28px;z-index:9000;"><a href="algo.html" style="background:#0a0d08;border:1.5px solid #00c805;color:#00c805;padding:9px 16px;border-radius:50px;font-size:0.62rem;font-weight:bold;letter-spacing:1px;text-decoration:none;box-shadow:0 0 14px rgba(0,200,5,0.15);display:flex;align-items:center;gap:6px;" target="_blank"⚡ ALGO ENGINE</a></div></header>
 
 <!-- ===== SELECTED INFO BAR ===== -->
 <div id="selectedInfoBar" class="sel-info-bar">
